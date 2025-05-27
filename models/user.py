@@ -3,6 +3,7 @@
 from datetime import datetime
 import re
 
+
 from sqlalchemy.orm import validates
 from werkzeug.security import check_password_hash, generate_password_hash
 
