@@ -1,5 +1,4 @@
 """Flask application factory."""
-
 from flask import Flask
 
 from config import Config
