@@ -1,5 +1,5 @@
 """Auth package exports."""
 
-from .routes import auth_bp
+from .routes import bp
 
-__all__ = ["auth_bp"]
+__all__ = ["bp"]

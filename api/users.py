@@ -7,10 +7,10 @@ from models import User, db
 from auth.decorators import admin_required, log_activity
 
 
-bp = Blueprint("users", __name__, url_prefix="/api/users")
+users_bp = Blueprint("users", __name__)
 
 
-@bp.route("", methods=["GET"])
+@users_bp.route("", methods=["GET"])
 @admin_required
 def list_users() -> tuple:
     """Return all users."""
@@ -21,7 +21,7 @@ def list_users() -> tuple:
     return jsonify(users)
 
 
-@bp.route("", methods=["POST"])
+@users_bp.route("", methods=["POST"])
 @admin_required
 @log_activity("add_user")
 def create_user() -> tuple:
@@ -42,7 +42,7 @@ def create_user() -> tuple:
     )
 
 
-@bp.route("/<int:user_id>", methods=["DELETE"])
+@users_bp.route("/<int:user_id>", methods=["DELETE"])
 @admin_required
 @log_activity("delete_user")
 def delete_user(user_id: int) -> tuple:

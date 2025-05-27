@@ -8,7 +8,7 @@ from .jwt_handler import create_token
 from .decorators import jwt_required
 
 
-bp = Blueprint("auth", __name__, url_prefix="/auth")
+bp = Blueprint("auth", __name__)
 
 
 @bp.route("/login", methods=["POST"])

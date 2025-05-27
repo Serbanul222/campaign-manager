@@ -10,7 +10,18 @@ services:
   frontend:
     build: ./campaign-manager-frontend
     volumes:
-      - ./campaign-manager-frontend:/app
+      # Only mount the source directory
+      - ./campaign-manager-frontend/src:/app/src
+      # Mount configuration files
+      - ./campaign-manager-frontend/vite.config.js:/app/vite.config.js
+      - ./campaign-manager-frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./campaign-manager-frontend/postcss.config.js:/app/postcss.config.js
+      - ./campaign-manager-frontend/index.html:/app/index.html
     ports:
-      - "3000:3000"
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - FAST_REFRESH=false
+      - NODE_PATH=/app/node_modules
     command: npm run dev -- --host
