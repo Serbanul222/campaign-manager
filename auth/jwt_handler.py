@@ -1,8 +1,7 @@
-"""JWT token creation and validation utilities."""
+"""JWT token management utilities."""
 
 from datetime import datetime, timedelta
 from typing import Any, Dict
-import uuid
 
 import jwt
 from flask import current_app
@@ -10,30 +9,30 @@ from flask import current_app
 from models import JWTBlacklist, db
 
 
-def generate_token(user_id: int) -> str:
-    """Return an encoded JWT for the given user."""
+def create_access_token(user_id: int) -> str:
+    """Generate a JWT token with user identifier."""
     payload = {
         "sub": user_id,
         "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=8),
-        "jti": str(uuid.uuid4()),
+        "jti": str(user_id) + str(datetime.utcnow().timestamp()),
     }
-    secret = current_app.config["SECRET_KEY"]
-    return jwt.encode(payload, secret, algorithm="HS256")
+    return jwt.encode(payload, current_app.config["SECRET_KEY"], algorithm="HS256")
 
 
 def decode_token(token: str) -> Dict[str, Any]:
-    """Decode a JWT and return its payload."""
-    secret = current_app.config["SECRET_KEY"]
-    return jwt.decode(token, secret, algorithms=["HS256"])
+    """Decode a JWT token and return the payload."""
+    return jwt.decode(
+        token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
+    )
+
+
+def is_token_revoked(jti: str) -> bool:
+    """Check if the given token identifier has been revoked."""
+    return JWTBlacklist.query.filter_by(jti=jti).first() is not None
 
 
 def revoke_token(jti: str) -> None:
     """Store the token identifier in the blacklist."""
     db.session.add(JWTBlacklist(jti=jti))
     db.session.commit()
-
-
-def is_token_revoked(jti: str) -> bool:
-    """Return True if the token identifier exists in the blacklist."""
-    return db.session.query(JWTBlacklist.id).filter_by(jti=jti).first() is not None

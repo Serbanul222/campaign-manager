@@ -1,49 +1,47 @@
-"""Authentication and logging decorators."""
+"""Authentication-related decorators."""
 
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Callable
 
 from flask import g, jsonify, request
-import jwt
+from jwt import DecodeError, ExpiredSignatureError
 
 from models import ActivityLog, User, db
 from .jwt_handler import decode_token, is_token_revoked
 
-F = TypeVar("F", bound=Callable[..., Any])
 
-
-def jwt_required(func: F) -> F:
-    """Ensure that a valid JWT is present."""
+def jwt_required(func: Callable) -> Callable:
+    """Ensure a valid JWT token is present."""
 
     @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any):
+    def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
+        token = auth_header.replace("Bearer ", "") if auth_header else None
+        if not token:
             return jsonify({"error": "Missing token"}), 401
-        token = auth_header.split(" ", 1)[1]
         try:
             payload = decode_token(token)
-        except jwt.ExpiredSignatureError:
+        except ExpiredSignatureError:
             return jsonify({"error": "Token expired"}), 401
-        except jwt.InvalidTokenError:
+        except DecodeError:
             return jsonify({"error": "Invalid token"}), 401
-        if is_token_revoked(payload.get("jti")):
+        if is_token_revoked(payload["jti"]):
             return jsonify({"error": "Token revoked"}), 401
-        user = User.query.get(payload.get("sub"))
+        user = User.query.get(payload["sub"])
         if not user:
             return jsonify({"error": "User not found"}), 404
         g.current_user = user
         return func(*args, **kwargs)
 
-    return wrapper  # type: ignore[misc]
+    return wrapper
 
 
-def log_activity(action: str) -> Callable[[F], F]:
-    """Log user action to the database."""
+def log_activity(action: str) -> Callable:
+    """Log user actions for auditing."""
 
-    def decorator(func: F) -> F:
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any):
+        def wrapper(*args, **kwargs):
             response = func(*args, **kwargs)
             user = getattr(g, "current_user", None)
             db.session.add(
@@ -56,6 +54,6 @@ def log_activity(action: str) -> Callable[[F], F]:
             db.session.commit()
             return response
 
-        return wrapper  # type: ignore[misc]
+        return wrapper
 
     return decorator

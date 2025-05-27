@@ -1,15 +1,15 @@
 """Flask application factory."""
+
 from flask import Flask
 
 from config import Config
-from auth.routes import auth_bp
-from api.campaigns import campaign_bp
-from api.uploads import upload_bp
 from database.db_setup import create_tables, init_app
+from auth import auth_bp
+from api import campaign_bp, uploads_bp, users_bp
 
 
 def create_app(config_class: type[Config] = Config) -> Flask:
-    """Create and configure the Flask application."""
+    """Application factory for the campaign manager."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -17,12 +17,12 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     create_tables(app)
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(campaign_bp, url_prefix="/api")
-    app.register_blueprint(upload_bp, url_prefix="/api")
+    app.register_blueprint(campaign_bp, url_prefix="/campaigns")
+    app.register_blueprint(uploads_bp, url_prefix="/uploads")
+    app.register_blueprint(users_bp, url_prefix="/users")
 
     return app
 
 
-if __name__ == "__main__":  # pragma: no cover
-    app = create_app()
-    app.run(debug=True)
+if __name__ == "__main__":  # pragma: no cover - manual run
+    create_app().run(debug=True)
