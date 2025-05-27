@@ -2,11 +2,11 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '/api', // Assuming API base URL is /api
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token'); // Standard place to store JWT
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -14,4 +14,3 @@ api.interceptors.request.use((config) => {
 });
 
 export default api;
-

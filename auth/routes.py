@@ -44,5 +44,6 @@ def set_password() -> tuple:
 @jwt_required
 def logout() -> tuple:
     """Logout endpoint (token revocation placeholder)."""
+    # For a real logout, the token JTI would be added to a blacklist.
+    # See jwt_handler.py in other branches for an example.
     return jsonify({"message": "Logged out"})
-

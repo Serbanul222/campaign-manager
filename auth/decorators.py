@@ -22,7 +22,7 @@ def jwt_required(func):
         except Exception:  # pragma: no cover - decode errors
             return jsonify({"message": "Invalid token"}), 401
         user = User.query.get(payload.get("sub"))
-        if not user or not user.is_active:
+        if not user or not user.is_active: # Assuming User model has an is_active attribute
             return jsonify({"message": "Invalid user"}), 401
         g.current_user = user
         return func(*args, **kwargs)
@@ -65,4 +65,3 @@ def log_activity(action: str):
         return wrapper
 
     return decorator
-

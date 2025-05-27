@@ -53,4 +53,3 @@ def delete_user(user_id: int) -> tuple:
     db.session.delete(user)
     db.session.commit()
     return jsonify({"message": "User deleted"})
-

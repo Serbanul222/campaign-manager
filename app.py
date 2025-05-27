@@ -28,4 +28,3 @@ def create_app(config_class: type[Config] = Config) -> Flask:
 
 if __name__ == "__main__":  # pragma: no cover
     create_app().run(debug=True)
-
