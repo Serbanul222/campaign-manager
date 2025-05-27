@@ -1,19 +1,21 @@
-import api from './api.js';
-import { saveToken, clearToken } from './storage.js';
+ 
+import api from './api';
 
-export async function login(email, password) {
+export const login = async (email, password) => {
   const { data } = await api.post('/auth/login', { email, password });
-  saveToken(data.access_token);
+  localStorage.setItem('token', data.token); // Store token upon successful login
   return data;
-}
+};
 
-export async function setPassword(token, password) {
-  const { data } = await api.post('/auth/set-password', { token, password });
-  saveToken(data.access_token);
-  return data;
-}
+// The setPassword in `vzu7ti-codex` backend takes email and new password.
+// It does not require JWT for this specific endpoint as per its definition.
+export const setPassword = (email, password) =>
+  api.post('/auth/set-password', { email, password });
 
-export function logout() {
-  clearToken();
+export const logout = () => {
+  // Client-side token removal
+  localStorage.removeItem('token');
+  // Server-side logout (e.g., token blacklisting if implemented)
+  // The `vzu7ti-codex` backend's /auth/logout is a placeholder but still called.
   return api.post('/auth/logout');
-}
+};

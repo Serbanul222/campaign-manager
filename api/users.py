@@ -1,32 +1,55 @@
-"""User management endpoints (admin only)."""
+ 
+"""User management API routes."""
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
-from auth.decorators import jwt_required
 from models import User, db
+from auth.decorators import admin_required, log_activity
 
-users_bp = Blueprint("users", __name__)
+
+bp = Blueprint("users", __name__, url_prefix="/api/users")
 
 
-@users_bp.get("/")
-@jwt_required
-def list_users():
+@bp.route("", methods=["GET"])
+@admin_required
+def list_users() -> tuple:
     """Return all users."""
-    users = User.query.all()
-    return jsonify([{"id": u.id, "email": u.email, "is_admin": u.is_admin} for u in users])
+    users = [
+        {"id": u.id, "email": u.email, "is_admin": u.is_admin}
+        for u in User.query.all()
+    ]
+    return jsonify(users)
 
 
-@users_bp.post("/")
-@jwt_required
-def create_user():
-    """Add a new user (admin)."""
+@bp.route("", methods=["POST"])
+@admin_required
+@log_activity("add_user")
+def create_user() -> tuple:
+    """Create a new user."""
     data = request.get_json() or {}
     email = data.get("email")
+    is_admin = bool(data.get("is_admin"))
     if not email:
-        return jsonify({"error": "Email required"}), 400
+        return jsonify({"message": "Email required"}), 400
     if User.query.filter_by(email=email).first():
-        return jsonify({"error": "User exists"}), 400
-    user = User(email=email, password_hash="")
+        return jsonify({"message": "User exists"}), 400
+    user = User(email=email, is_admin=is_admin, password_hash="")
     db.session.add(user)
     db.session.commit()
-    return jsonify({"id": user.id, "email": user.email}), 201
+    return (
+        jsonify({"id": user.id, "email": user.email, "is_admin": user.is_admin}),
+        201,
+    )
+
+
+@bp.route("/<int:user_id>", methods=["DELETE"])
+@admin_required
+@log_activity("delete_user")
+def delete_user(user_id: int) -> tuple:
+    """Delete a user by ID."""
+    user = User.query.get_or_404(user_id)
+    if user.id == g.current_user.id:
+        return jsonify({"message": "Cannot delete yourself"}), 400
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"message": "User deleted"})

@@ -1,57 +1,65 @@
-"""Authentication-related decorators."""
+ 
+"""Request decorators for authentication and logging."""
 
 from functools import wraps
-from typing import Callable
+from flask import request, jsonify, g
 
-from flask import g, jsonify, request
-from jwt import DecodeError, ExpiredSignatureError
-
-from models import ActivityLog, User, db
-from .jwt_handler import decode_token, is_token_revoked
+from models import User, ActivityLog, db
+from .jwt_handler import decode_token
 
 
-def jwt_required(func: Callable) -> Callable:
-    """Ensure a valid JWT token is present."""
+def jwt_required(func):
+    """Ensure the request has a valid JWT token."""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
-        token = auth_header.replace("Bearer ", "") if auth_header else None
-        if not token:
-            return jsonify({"error": "Missing token"}), 401
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"message": "Missing token"}), 401
+        token = auth_header.split(" ", 1)[1]
         try:
             payload = decode_token(token)
-        except ExpiredSignatureError:
-            return jsonify({"error": "Token expired"}), 401
-        except DecodeError:
-            return jsonify({"error": "Invalid token"}), 401
-        if is_token_revoked(payload["jti"]):
-            return jsonify({"error": "Token revoked"}), 401
-        user = User.query.get(payload["sub"])
-        if not user:
-            return jsonify({"error": "User not found"}), 404
+        except Exception:  # pragma: no cover - decode errors
+            return jsonify({"message": "Invalid token"}), 401
+        user = User.query.get(payload.get("sub"))
+        if not user or not user.is_active: # Assuming User model has an is_active attribute
+            return jsonify({"message": "Invalid user"}), 401
         g.current_user = user
         return func(*args, **kwargs)
 
     return wrapper
 
 
-def log_activity(action: str) -> Callable:
-    """Log user actions for auditing."""
+def admin_required(func):
+    """Allow only admin users to access the route."""
 
-    def decorator(func: Callable) -> Callable:
+    @wraps(func)
+    @jwt_required
+    def wrapper(*args, **kwargs):
+        user = g.current_user
+        if not user.is_admin:
+            return jsonify({"message": "Forbidden"}), 403
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+def log_activity(action: str):
+    """Log the activity for the current user."""
+
+    def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             response = func(*args, **kwargs)
             user = getattr(g, "current_user", None)
-            db.session.add(
-                ActivityLog(
-                    user_id=user.id if user else None,
+            if user:
+                log = ActivityLog(
+                    user_id=user.id,
                     action=action,
                     ip_address=request.remote_addr,
                 )
-            )
-            db.session.commit()
+                db.session.add(log)
+                db.session.commit()
             return response
 
         return wrapper

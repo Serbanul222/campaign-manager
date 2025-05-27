@@ -1,38 +1,28 @@
-"""JWT token management utilities."""
+ 
+"""JWT encoding and decoding utilities."""
 
 from datetime import datetime, timedelta
-from typing import Any, Dict
-
 import jwt
 from flask import current_app
 
-from models import JWTBlacklist, db
 
-
-def create_access_token(user_id: int) -> str:
-    """Generate a JWT token with user identifier."""
+def create_token(user_id: int) -> str:
+    """Return a signed JWT for the given user."""
     payload = {
         "sub": user_id,
-        "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(hours=8),
-        "jti": str(user_id) + str(datetime.utcnow().timestamp()),
+         # Adding 'jti' for potential revocation, can be made more unique if needed
+        "jti": str(user_id) + str(datetime.utcnow().timestamp())
     }
-    return jwt.encode(payload, current_app.config["SECRET_KEY"], algorithm="HS256")
+    secret = current_app.config["SECRET_KEY"]
+    return jwt.encode(payload, secret, algorithm="HS256")
 
 
-def decode_token(token: str) -> Dict[str, Any]:
-    """Decode a JWT token and return the payload."""
-    return jwt.decode(
-        token, current_app.config["SECRET_KEY"], algorithms=["HS256"]
-    )
+def decode_token(token: str) -> dict:
+    """Decode a JWT and return the payload."""
+    secret = current_app.config["SECRET_KEY"]
+    return jwt.decode(token, secret, algorithms=["HS256"])
 
-
-def is_token_revoked(jti: str) -> bool:
-    """Check if the given token identifier has been revoked."""
-    return JWTBlacklist.query.filter_by(jti=jti).first() is not None
-
-
-def revoke_token(jti: str) -> None:
-    """Store the token identifier in the blacklist."""
-    db.session.add(JWTBlacklist(jti=jti))
-    db.session.commit()
+# Note: If token revocation is needed, `is_token_revoked` and `revoke_token`
+# from the `main` branch would need to be added here, along with the JWTBlacklist model.
+# For now, keeping it simple as per the `vzu7ti-codex` version.
