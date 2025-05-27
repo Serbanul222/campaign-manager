@@ -1,0 +1,16 @@
+version: "3.8"
+services:
+  backend:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "5000:5000"
+    command: bash -c "python scripts/init_db.py && flask run --host=0.0.0.0 --reload"
+  frontend:
+    build: ./campaign-manager-frontend
+    volumes:
+      - ./campaign-manager-frontend:/app
+    ports:
+      - "3000:3000"
+    command: npm run dev -- --host

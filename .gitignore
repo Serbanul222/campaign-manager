@@ -1,1 +1,10 @@
- 
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+node_modules/
+campaigns.db
+.env
+.idea/
+.vscode/
+__pycache__/
