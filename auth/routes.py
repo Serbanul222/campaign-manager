@@ -43,8 +43,8 @@ def logout():
 @log_activity("set_password")
 def set_password():
     """Allow a user to set or reset their password."""
-    user = request.get_json() or {}
-    password = user.get("password")
+    user_data = request.get_json() or {}
+    password = user_data.get("password")
     if not password:
         return jsonify({"error": "Password required"}), 400
     g.current_user.password_hash = generate_password_hash(password)
