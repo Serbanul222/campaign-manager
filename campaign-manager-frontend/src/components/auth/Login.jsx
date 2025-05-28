@@ -1,23 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
 import useAuth from '../../hooks/useAuth.js';
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     
+    console.log('Attempting login with:', email);
+    
     try {
-      await login(email, password);
+      const response = await login(email, password);
+      
+      console.log('Login response:', response);
+      
+      // Check if user needs to set password
+      if (response && response.requires_password_setup) {
+        console.log('Redirecting to set password');
+        navigate(`/set-password?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      
+      // Check if login was successful
+      if (response && response.token) {
+        console.log('Login successful, redirecting to dashboard');
+        navigate('/dashboard');
+        return;
+      }
+      
+      // If we get here, something went wrong
+      setError('Login successful but no token received');
+      
     } catch (err) {
+      console.error('Login error:', err);
+      
+      // Handle different error cases
+      if (err.response?.status === 200 && err.response?.data?.requires_password_setup) {
+        console.log('Password setup required from error response');
+        navigate(`/set-password?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

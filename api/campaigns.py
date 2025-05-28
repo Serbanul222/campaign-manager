@@ -10,6 +10,7 @@ from auth.decorators import jwt_required
 from models import Campaign, CampaignImage, db
 from .utils import allowed_file, create_campaign_folder, save_image
 
+# Create blueprint without URL prefix - it will be added during registration
 campaign_bp = Blueprint("campaigns", __name__)
 
 
@@ -25,7 +26,7 @@ def _serialize_campaign(campaign: Campaign) -> Dict[str, str]:
     }
 
 
-@campaign_bp.get("/")
+@campaign_bp.route("/", methods=["GET"])
 @jwt_required
 def list_campaigns():
     """Return all campaigns."""
@@ -33,19 +34,37 @@ def list_campaigns():
     return jsonify([_serialize_campaign(c) for c in campaigns])
 
 
-@campaign_bp.post("/")
+@campaign_bp.route("/", methods=["POST"])
 @jwt_required
 def create_campaign():
     """Create a new campaign with uploaded images."""
-    form = request.form
-    name = form.get("name")
-    start_date = form.get("start_date")
-    end_date = form.get("end_date")
+    # Handle both form data and JSON data
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        # Form data with files
+        form = request.form
+        name = form.get("name")
+        start_date = form.get("start_date")
+        end_date = form.get("end_date")
+    else:
+        # JSON data
+        data = request.get_json() or {}
+        name = data.get("name")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+    
     if not all([name, start_date, end_date]):
-        return jsonify({"error": "Missing fields"}), 400
-    start = date.fromisoformat(start_date)
-    end = date.fromisoformat(end_date)
+        return jsonify({"error": "Missing required fields: name, start_date, end_date"}), 400
+    
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    
+    # Create folder for campaign assets
     folder = create_campaign_folder(start.isoformat())
+    
+    # Create campaign record
     campaign = Campaign(
         name=name,
         start_date=start,
@@ -56,46 +75,55 @@ def create_campaign():
     campaign.update_status(date.today())
     db.session.add(campaign)
     db.session.commit()
+    
+    # Handle file uploads if present
     for image_type in ["background", "logo", "screensaver"]:
         file = request.files.get(image_type)
-        if not file or not allowed_file(file.filename):
-            continue
-        filename = f"{campaign.start_date.isoformat()}{image_type[:3]}.png"
-        path = save_image(file, folder / filename)
-        db.session.add(
-            CampaignImage(
-                campaign_id=campaign.id, image_type=image_type, file_path=path
+        if file and allowed_file(file.filename):
+            filename = f"{campaign.start_date.isoformat()}{image_type[:3]}.png"
+            path = save_image(file, folder / filename)
+            db.session.add(
+                CampaignImage(
+                    campaign_id=campaign.id, 
+                    image_type=image_type, 
+                    file_path=str(path)
+                )
             )
-        )
+    
     db.session.commit()
     return jsonify(_serialize_campaign(campaign)), 201
 
 
-@campaign_bp.put("/<int:campaign_id>")
+@campaign_bp.route("/<int:campaign_id>", methods=["PUT"])
 @jwt_required
 def update_campaign(campaign_id: int):
     """Update campaign details."""
     campaign = Campaign.query.get_or_404(campaign_id)
     data = request.get_json() or {}
+    
     campaign.name = data.get("name", campaign.name)
     if "start_date" in data:
         campaign.start_date = date.fromisoformat(data["start_date"])
     if "end_date" in data:
         campaign.end_date = date.fromisoformat(data["end_date"])
+    
     campaign.update_status(date.today())
     db.session.commit()
     return jsonify(_serialize_campaign(campaign))
 
 
-@campaign_bp.delete("/<int:campaign_id>")
+@campaign_bp.route("/<int:campaign_id>", methods=["DELETE"])
 @jwt_required
 def delete_campaign(campaign_id: int):
     """Delete campaign and associated images."""
     campaign = Campaign.query.get_or_404(campaign_id)
+    
+    # Delete associated image files
     for image in campaign.images:
         path = Path(image.file_path)
         if path.exists():
             path.unlink()
+    
     db.session.delete(campaign)
     db.session.commit()
-    return jsonify({"message": "Deleted"})
+    return jsonify({"message": "Campaign deleted successfully"})

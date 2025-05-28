@@ -11,30 +11,51 @@ from .utils import allowed_file, save_image
 uploads_bp = Blueprint("uploads", __name__)
 
 
-@uploads_bp.post("/<int:campaign_id>")
+@uploads_bp.route("/<int:campaign_id>", methods=["POST"])
 @jwt_required
 def upload_image(campaign_id: int):
-    """Upload a single image to an existing campaign."""
+    """Upload images to an existing campaign."""
     campaign = Campaign.query.get_or_404(campaign_id)
-    image_type = request.args.get("type")
-    file = request.files.get("file")
-    if image_type not in {"background", "logo", "screensaver"}:
-        return jsonify({"error": "Invalid type"}), 400
-    if not file or not allowed_file(file.filename):
-        return jsonify({"error": "Invalid file"}), 400
     folder = Path(campaign.folder_path)
-    filename = f"{campaign.start_date.isoformat()}{image_type[:3]}.png"
-    path = save_image(file, folder / filename)
-    img = CampaignImage.query.filter_by(
-        campaign_id=campaign.id, image_type=image_type
-    ).first()
-    if img:
-        img.file_path = path
-    else:
-        db.session.add(
-            CampaignImage(
-                campaign_id=campaign.id, image_type=image_type, file_path=path
-            )
-        )
+    
+    uploaded_files = []
+    
+    # Handle multiple image types
+    for image_type in ["background", "logo", "screensaver"]:
+        file = request.files.get(image_type)
+        if file and allowed_file(file.filename):
+            # Generate filename based on campaign date and image type
+            filename = f"{campaign.start_date.isoformat()}{image_type[:3]}.png"
+            path = save_image(file, folder / filename)
+            
+            # Update or create image record
+            img = CampaignImage.query.filter_by(
+                campaign_id=campaign.id, image_type=image_type
+            ).first()
+            
+            if img:
+                # Update existing image
+                img.file_path = str(path)
+            else:
+                # Create new image record
+                img = CampaignImage(
+                    campaign_id=campaign.id,
+                    image_type=image_type,
+                    file_path=str(path)
+                )
+                db.session.add(img)
+            
+            uploaded_files.append({
+                "type": image_type,
+                "path": str(path),
+                "filename": filename
+            })
+    
+    if not uploaded_files:
+        return jsonify({"error": "No valid image files provided"}), 400
+    
     db.session.commit()
-    return jsonify({"message": "Uploaded", "path": path})
+    return jsonify({
+        "message": "Images uploaded successfully",
+        "uploaded_files": uploaded_files
+    })
