@@ -1,17 +1,18 @@
-"""Authentication route handlers."""
-
+# auth/routes.py - Enhanced with comprehensive logging
 from flask import Blueprint, jsonify, request, g
+import json
 
 from models import User, db
 from .jwt_handler import create_token
-from .decorators import jwt_required
+from .decorators import jwt_required, log_activity
 
 
 bp = Blueprint("auth", __name__)
 
 
 @bp.route("/login", methods=["POST"])
-def login() -> tuple:
+@log_activity("login_attempt", "User login attempt")
+def login():
     """Authenticate a user and return a JWT."""
     data = request.get_json() or {}
     email = data.get("email")
@@ -22,12 +23,41 @@ def login() -> tuple:
     
     user = User.query.filter_by(email=email).first()
     
-    # If user doesn't exist, check if email is authorized
+    # Track login attempt details
+    attempt_details = {
+        "email": email,
+        "ip_address": request.remote_addr,
+        "user_agent": request.headers.get("User-Agent", "")[:255]
+    }
+    
     if not user:
+        # Update log with failed attempt
+        from models import ActivityLog
+        log = ActivityLog(
+            user_id=None,
+            action="login_failed",
+            status="error",
+            ip_address=request.remote_addr,
+            details=json.dumps({**attempt_details, "reason": "email_not_authorized"})
+        )
+        db.session.add(log)
+        db.session.commit()
+        
         return jsonify({"message": "Email not authorized"}), 401
     
     # If user exists but has no password set (first time login)
     if not user.password_hash or user.password_hash == "":
+        # Log first-time login detection
+        log = ActivityLog(
+            user_id=user.id,
+            action="first_time_login_detected",
+            status="success",
+            ip_address=request.remote_addr,
+            details=json.dumps({**attempt_details, "requires_password_setup": True})
+        )
+        db.session.add(log)
+        db.session.commit()
+        
         return jsonify({
             "message": "First time login - password required",
             "requires_password_setup": True,
@@ -36,9 +66,37 @@ def login() -> tuple:
     
     # Normal login flow
     if not user.check_password(password):
+        # Log failed login
+        log = ActivityLog(
+            user_id=user.id,
+            action="login_failed",
+            status="error",
+            ip_address=request.remote_addr,
+            details=json.dumps({**attempt_details, "reason": "invalid_password"})
+        )
+        db.session.add(log)
+        db.session.commit()
+        
         return jsonify({"message": "Invalid credentials"}), 401
     
+    # Successful login
     token = create_token(user.id)
+    
+    # Log successful login
+    log = ActivityLog(
+        user_id=user.id,
+        action="login_success",
+        status="success",
+        ip_address=request.remote_addr,
+        details=json.dumps({
+            **attempt_details,
+            "user_id": user.id,
+            "is_admin": user.is_admin
+        })
+    )
+    db.session.add(log)
+    db.session.commit()
+    
     return jsonify({
         "token": token,
         "user": {
@@ -50,7 +108,8 @@ def login() -> tuple:
 
 
 @bp.route("/set-password", methods=["POST"])
-def set_password() -> tuple:
+@log_activity("set_password", "User set password")
+def set_password():
     """Allow a user to set their password for the first time."""
     data = request.get_json() or {}
     email = data.get("email")
@@ -65,6 +124,23 @@ def set_password() -> tuple:
     
     # Set the password
     user.set_password(password)
+    db.session.commit()
+    
+    # Log password setup
+    from models import ActivityLog
+    log = ActivityLog(
+        user_id=user.id,
+        action="password_set_success",
+        status="success",
+        ip_address=request.remote_addr,
+        details=json.dumps({
+            "email": email,
+            "user_id": user.id,
+            "is_admin": user.is_admin,
+            "ip_address": request.remote_addr
+        })
+    )
+    db.session.add(log)
     db.session.commit()
     
     # Return JWT token for immediate login
@@ -82,7 +158,8 @@ def set_password() -> tuple:
 
 @bp.route("/me", methods=["GET"])
 @jwt_required
-def get_current_user() -> tuple:
+@log_activity("get_user_profile", "Retrieved user profile")
+def get_current_user():
     """Get current user information from JWT token."""
     user = g.current_user
     return jsonify({
@@ -97,8 +174,22 @@ def get_current_user() -> tuple:
 
 @bp.route("/logout", methods=["POST"])
 @jwt_required
-def logout() -> tuple:
-    """Logout endpoint (token revocation placeholder)."""
-    # For a real logout, the token JTI would be added to a blacklist.
-    # See jwt_handler.py in other branches for an example.
-    return jsonify({"message": "Logged out"})
+@log_activity("logout", "User logged out")
+def logout():
+    """Logout endpoint with activity logging."""
+    # Log the logout
+    from models import ActivityLog
+    log = ActivityLog(
+        user_id=g.current_user.id,
+        action="logout_success",
+        status="success",
+        ip_address=request.remote_addr,
+        details=json.dumps({
+            "user_id": g.current_user.id,
+            "email": g.current_user.email
+        })
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    return jsonify({"message": "Logged out successfully"})

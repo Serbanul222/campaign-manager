@@ -1,13 +1,13 @@
- 
+// pages/LogsPage.jsx - Updated logs page using new components
 import React from 'react';
-import ActivityLogs from '../components/logs/ActivityLogs';
+import ActivityLogViewer from '../components/logs/ActivityLogViewer';
 
-const LogsPage = () => (
-  <div className="p-4">
-    <h1 className="text-xl mb-4">Activity Logs</h1>
-    <ActivityLogs />
-  </div>
-);
+const LogsPage = () => {
+  return (
+    <div className="min-h-screen">
+      <ActivityLogViewer />
+    </div>
+  );
+};
 
 export default LogsPage;
-

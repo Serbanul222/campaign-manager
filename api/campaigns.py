@@ -1,16 +1,15 @@
-"""Campaign management endpoints with proper file naming and automatic status updates."""
-
+# api/campaigns.py - Enhanced with comprehensive activity logging
 from datetime import date
 from pathlib import Path
 from typing import Dict
+import json
 
 from flask import Blueprint, jsonify, request, g
 
-from auth.decorators import jwt_required
+from auth.decorators import jwt_required, log_activity
 from models import Campaign, CampaignImage, db
 from .utils import allowed_file, create_campaign_folder, save_image
 
-# Create blueprint without URL prefix - it will be added during registration
 campaign_bp = Blueprint("campaigns", __name__)
 
 
@@ -32,31 +31,54 @@ def _update_all_campaign_statuses():
     campaigns = Campaign.query.all()
     
     updated_count = 0
+    updated_campaigns = []
+    
     for campaign in campaigns:
         old_status = campaign.status
         campaign.update_status(today)
         
         if old_status != campaign.status:
             updated_count += 1
+            updated_campaigns.append({
+                "id": campaign.id,
+                "name": campaign.name,
+                "old_status": old_status,
+                "new_status": campaign.status
+            })
             print(f"Campaign '{campaign.name}' status changed: {old_status} -> {campaign.status}")
     
     if updated_count > 0:
         db.session.commit()
         print(f"Updated {updated_count} campaign statuses")
+        
+        # Log the bulk status update
+        user = getattr(g, "current_user", None)
+        if user:
+            from models import ActivityLog
+            log = ActivityLog(
+                user_id=user.id,
+                action="bulk_update_campaign_status",
+                status="success",
+                ip_address=request.remote_addr if request else None,
+                details=json.dumps({
+                    "updated_count": updated_count,
+                    "campaigns": updated_campaigns
+                }),
+                resource_type="campaign"
+            )
+            db.session.add(log)
+            db.session.commit()
     
     return updated_count
 
 
 def _check_date_conflicts(start_date: date, end_date: date, exclude_campaign_id: int = None) -> str:
     """Check if the date range conflicts with existing active campaigns."""
-    # First update all statuses to get current active campaigns
     _update_all_campaign_statuses()
     
     query = Campaign.query.filter(
         Campaign.status == "active"
     ).filter(
-        # Check for date overlap: new campaign overlaps if:
-        # start_date <= existing.end_date AND end_date >= existing.start_date
         Campaign.start_date <= end_date,
         Campaign.end_date >= start_date
     )
@@ -74,9 +96,8 @@ def _check_date_conflicts(start_date: date, end_date: date, exclude_campaign_id:
 
 def _get_image_filename(campaign_start_date: date, image_type: str) -> str:
     """Generate the correct filename based on date and image type."""
-    date_str = campaign_start_date.isoformat()  # e.g., "2025-05-29"
+    date_str = campaign_start_date.isoformat()
     
-    # File naming mapping according to your requirements
     image_type_mapping = {
         "background": "bkg",
         "logo": "logo", 
@@ -89,17 +110,20 @@ def _get_image_filename(campaign_start_date: date, image_type: str) -> str:
 
 @campaign_bp.route("/", methods=["GET"])
 @jwt_required
+@log_activity("list_campaigns", "Retrieved campaign list")
 def list_campaigns():
     """Return all campaigns with updated statuses."""
-    # Update all campaign statuses before returning the list
     _update_all_campaign_statuses()
     
     campaigns = Campaign.query.all()
-    return jsonify([_serialize_campaign(c) for c in campaigns])
+    campaign_data = [_serialize_campaign(c) for c in campaigns]
+    
+    return jsonify(campaign_data)
 
 
 @campaign_bp.route("/", methods=["POST"])
 @jwt_required
+@log_activity("create_campaign", resource_type="campaign")
 def create_campaign():
     """Create a new campaign with uploaded images."""
     # Handle both form data and JSON data
@@ -146,11 +170,13 @@ def create_campaign():
     db.session.add(campaign)
     db.session.flush()  # This assigns the ID without committing
     
+    # Track uploaded images for logging
+    uploaded_images = []
+    
     # Handle file uploads with proper naming convention
     for image_type in ["background", "logo", "screensaver"]:
         file = request.files.get(image_type)
         if file and allowed_file(file.filename):
-            # Generate filename: YYYY-MM-DDsuffix.png
             filename = _get_image_filename(campaign.start_date, image_type)
             path = save_image(file, folder / filename)
             
@@ -161,10 +187,32 @@ def create_campaign():
                     file_path=str(path)
                 )
             )
+            uploaded_images.append(image_type)
     
     db.session.commit()
     
-    # Update all statuses again after committing the new campaign
+    # Update the decorator with detailed information
+    from models import ActivityLog
+    # Find the most recent log for this user and update it with details
+    recent_log = ActivityLog.query.filter_by(
+        user_id=g.current_user.id,
+        action="create_campaign"
+    ).order_by(ActivityLog.created_at.desc()).first()
+    
+    if recent_log:
+        details = {
+            "campaign_id": campaign.id,
+            "campaign_name": name,
+            "start_date": start_date,
+            "end_date": end_date,
+            "status": campaign.status,
+            "uploaded_images": uploaded_images,
+            "folder_path": str(folder)
+        }
+        recent_log.details = json.dumps(details)
+        recent_log.resource_id = str(campaign.id)
+        db.session.commit()
+    
     _update_all_campaign_statuses()
     
     return jsonify(_serialize_campaign(campaign)), 201
@@ -172,10 +220,20 @@ def create_campaign():
 
 @campaign_bp.route("/<int:campaign_id>", methods=["PUT"])
 @jwt_required
+@log_activity("update_campaign", resource_type="campaign")
 def update_campaign(campaign_id: int):
     """Update campaign details."""
     campaign = Campaign.query.get_or_404(campaign_id)
     data = request.get_json() or {}
+    
+    # Track what's being changed for logging
+    changes = {}
+    original_data = {
+        "name": campaign.name,
+        "start_date": campaign.start_date.isoformat(),
+        "end_date": campaign.end_date.isoformat(),
+        "status": campaign.status
+    }
     
     # Handle date updates
     start_date_str = data.get("start_date")
@@ -196,47 +254,97 @@ def update_campaign(campaign_id: int):
         if conflict_error:
             return jsonify({"error": conflict_error}), 409
         
-        # If dates changed, we need to rename image files
+        # Track date changes
+        if new_start != campaign.start_date:
+            changes["start_date"] = {
+                "old": campaign.start_date.isoformat(),
+                "new": new_start.isoformat()
+            }
+            
+        if new_end != campaign.end_date:
+            changes["end_date"] = {
+                "old": campaign.end_date.isoformat(),
+                "new": new_end.isoformat()
+            }
+        
+        # If dates changed, handle file renaming
         if new_start != campaign.start_date:
             old_folder = Path(campaign.folder_path)
             new_folder_name = new_start.isoformat()
             new_folder = old_folder.parent / new_folder_name
             
-            # Create new folder if it doesn't exist
             new_folder.mkdir(parents=True, exist_ok=True)
             
-            # Rename and move image files
+            renamed_files = []
             for image in campaign.images:
                 old_path = Path(image.file_path)
                 if old_path.exists():
-                    # Generate new filename with new date
                     new_filename = _get_image_filename(new_start, image.image_type)
                     new_path = new_folder / new_filename
                     
-                    # Move file to new location
                     old_path.rename(new_path)
-                    
-                    # Update database record
                     image.file_path = str(new_path)
+                    renamed_files.append({
+                        "type": image.image_type,
+                        "old_path": str(old_path),
+                        "new_path": str(new_path)
+                    })
             
-            # Update campaign folder path
             campaign.folder_path = str(new_folder)
+            changes["folder_path"] = {
+                "old": str(old_folder),
+                "new": str(new_folder)
+            }
+            changes["renamed_files"] = renamed_files
             
-            # Remove old folder if it's empty
+            # Remove old folder if empty
             try:
                 if old_folder.exists() and not any(old_folder.iterdir()):
                     old_folder.rmdir()
             except OSError:
-                pass  # Folder not empty or other issue, ignore
+                pass
         
         campaign.start_date = new_start
         campaign.end_date = new_end
     
-    campaign.name = data.get("name", campaign.name)
+    # Handle name changes
+    new_name = data.get("name")
+    if new_name and new_name != campaign.name:
+        changes["name"] = {
+            "old": campaign.name,
+            "new": new_name
+        }
+        campaign.name = new_name
+    
+    old_status = campaign.status
     campaign.update_status(date.today())
+    
+    if campaign.status != old_status:
+        changes["status"] = {
+            "old": old_status,
+            "new": campaign.status
+        }
+    
     db.session.commit()
     
-    # Update all campaign statuses after the change
+    # Update log with detailed changes
+    from models import ActivityLog
+    recent_log = ActivityLog.query.filter_by(
+        user_id=g.current_user.id,
+        action="update_campaign"
+    ).order_by(ActivityLog.created_at.desc()).first()
+    
+    if recent_log:
+        details = {
+            "campaign_id": campaign_id,
+            "campaign_name": campaign.name,
+            "changes": changes,
+            "original_data": original_data
+        }
+        recent_log.details = json.dumps(details)
+        recent_log.resource_id = str(campaign_id)
+        db.session.commit()
+    
     _update_all_campaign_statuses()
     
     return jsonify(_serialize_campaign(campaign))
@@ -244,28 +352,71 @@ def update_campaign(campaign_id: int):
 
 @campaign_bp.route("/<int:campaign_id>", methods=["DELETE"])
 @jwt_required
+@log_activity("delete_campaign", resource_type="campaign")
 def delete_campaign(campaign_id: int):
     """Delete campaign and associated images."""
     campaign = Campaign.query.get_or_404(campaign_id)
     
+    # Collect information for logging before deletion
+    campaign_info = {
+        "id": campaign.id,
+        "name": campaign.name,
+        "start_date": campaign.start_date.isoformat(),
+        "end_date": campaign.end_date.isoformat(),
+        "status": campaign.status,
+        "folder_path": campaign.folder_path
+    }
+    
+    deleted_images = []
     # Delete associated image files
     for image in campaign.images:
         path = Path(image.file_path)
         if path.exists():
-            path.unlink()
+            try:
+                path.unlink()
+                deleted_images.append({
+                    "type": image.image_type,
+                    "path": str(path),
+                    "deleted": True
+                })
+            except Exception as e:
+                deleted_images.append({
+                    "type": image.image_type,
+                    "path": str(path),
+                    "deleted": False,
+                    "error": str(e)
+                })
     
     # Try to remove the campaign folder if it's empty
+    folder_removed = False
     folder_path = Path(campaign.folder_path)
     try:
         if folder_path.exists() and not any(folder_path.iterdir()):
             folder_path.rmdir()
+            folder_removed = True
     except OSError:
-        pass  # Folder not empty or other issue, ignore
+        pass
     
     db.session.delete(campaign)
     db.session.commit()
     
-    # Update remaining campaign statuses
+    # Update log with detailed deletion info
+    from models import ActivityLog
+    recent_log = ActivityLog.query.filter_by(
+        user_id=g.current_user.id,
+        action="delete_campaign"
+    ).order_by(ActivityLog.created_at.desc()).first()
+    
+    if recent_log:
+        details = {
+            "deleted_campaign": campaign_info,
+            "deleted_images": deleted_images,
+            "folder_removed": folder_removed
+        }
+        recent_log.details = json.dumps(details)
+        recent_log.resource_id = str(campaign_id)
+        db.session.commit()
+    
     _update_all_campaign_statuses()
     
     return jsonify({"message": "Campaign deleted successfully"})
@@ -273,12 +424,11 @@ def delete_campaign(campaign_id: int):
 
 @campaign_bp.route("/active", methods=["GET"])  
 @jwt_required
+@log_activity("get_active_campaign", "Retrieved active campaign")
 def get_active_campaign():
     """Get the currently active campaign."""
-    # Update all statuses first
     _update_all_campaign_statuses()
     
-    # Get active campaign
     active_campaign = Campaign.query.filter_by(status="active").first()
     
     if not active_campaign:
@@ -292,6 +442,7 @@ def get_active_campaign():
 
 @campaign_bp.route("/update-statuses", methods=["POST"])
 @jwt_required
+@log_activity("manual_update_statuses", "Manually triggered campaign status update")
 def update_campaign_statuses():
     """Manual endpoint to update all campaign statuses."""
     updated_count = _update_all_campaign_statuses()
@@ -300,32 +451,3 @@ def update_campaign_statuses():
         "message": f"Updated {updated_count} campaign statuses",
         "updated_count": updated_count
     })
-    
-_test_date_override = None
-
-def _get_current_date():
-    """Get current date, or test override date if set."""
-    if _test_date_override:
-        return _test_date_override
-    return date.today()
-
-# Modify your existing _update_all_campaign_statuses function
-def _update_all_campaign_statuses():
-    """Update all campaign statuses based on current date."""
-    today = _get_current_date()  # Use test date if set
-    campaigns = Campaign.query.all()
-    
-    updated_count = 0
-    for campaign in campaigns:
-        old_status = campaign.status
-        campaign.update_status(today)
-        
-        if old_status != campaign.status:
-            updated_count += 1
-            print(f"Campaign '{campaign.name}' status changed: {old_status} -> {campaign.status} (using date: {today})")
-    
-    if updated_count > 0:
-        db.session.commit()
-        print(f"Updated {updated_count} campaign statuses")
-    
-    return updated_count
