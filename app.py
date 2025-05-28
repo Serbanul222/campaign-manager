@@ -1,4 +1,4 @@
-"""Flask application factory for the campaign manager."""
+"""Flask application factory for the campaign manager with fixed CORS."""
 
 from flask import Flask, jsonify, send_from_directory, abort
 from flask_cors import CORS
@@ -39,15 +39,28 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_class)
     
-    # Enable CORS
+    # Enhanced CORS configuration to fix the Authorization header issue
     CORS(app, 
          origins=["http://localhost:5173", "http://127.0.0.1:5173"], 
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-         supports_credentials=True)
+         supports_credentials=True,
+         expose_headers=["Content-Type", "Authorization"])
 
     init_app(app)
     registration_status = register_blueprints(app)
+    
+    # Add explicit OPTIONS handler for preflight requests
+    @app.before_request
+    def handle_preflight():
+        from flask import request, make_response
+        if request.method == "OPTIONS":
+            response = make_response()
+            response.headers.add("Access-Control-Allow-Origin", request.headers.get('Origin', '*'))
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            return response
     
     # Image serving endpoints
     @app.route("/api/images/<path:filepath>")
@@ -123,16 +136,6 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                 "url": str(rule)
             })
         return jsonify({"routes": sorted(routes, key=lambda x: x['url'])})
-    
-    @app.before_request
-    def handle_preflight():
-        from flask import request
-        if request.method == "OPTIONS":
-            response = jsonify({'status': 'ok'})
-            response.headers.add("Access-Control-Allow-Origin", "*")
-            response.headers.add('Access-Control-Allow-Headers', "*")
-            response.headers.add('Access-Control-Allow-Methods', "*")
-            return response
     
     return app
 

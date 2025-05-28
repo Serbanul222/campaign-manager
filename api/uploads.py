@@ -1,4 +1,4 @@
-"""Endpoints for uploading campaign images."""
+"""Endpoints for uploading campaign images with proper file naming."""
 
 from pathlib import Path
 
@@ -9,6 +9,21 @@ from models import Campaign, CampaignImage, db
 from .utils import allowed_file, save_image
 
 uploads_bp = Blueprint("uploads", __name__)
+
+
+def _get_image_filename(campaign_start_date, image_type: str) -> str:
+    """Generate the correct filename based on date and image type."""
+    date_str = campaign_start_date.isoformat()  # e.g., "2025-05-29"
+    
+    # File naming mapping according to your requirements
+    image_type_mapping = {
+        "background": "bkg",
+        "logo": "logo", 
+        "screensaver": "screensaver_bkg"
+    }
+    
+    suffix = image_type_mapping.get(image_type, image_type)
+    return f"{date_str}{suffix}.png"
 
 
 @uploads_bp.route("/<int:campaign_id>", methods=["POST"])
@@ -24,8 +39,8 @@ def upload_image(campaign_id: int):
     for image_type in ["background", "logo", "screensaver"]:
         file = request.files.get(image_type)
         if file and allowed_file(file.filename):
-            # Generate filename based on campaign date and image type
-            filename = f"{campaign.start_date.isoformat()}{image_type[:3]}.png"
+            # Generate filename: YYYY-MM-DDsuffix.png
+            filename = _get_image_filename(campaign.start_date, image_type)
             path = save_image(file, folder / filename)
             
             # Update or create image record
@@ -34,7 +49,15 @@ def upload_image(campaign_id: int):
             ).first()
             
             if img:
-                # Update existing image
+                # Delete old image file if it exists and is different
+                old_path = Path(img.file_path)
+                if old_path.exists() and str(old_path) != str(path):
+                    try:
+                        old_path.unlink()
+                    except Exception as e:
+                        print(f"Warning: Could not delete old image {old_path}: {e}")
+                
+                # Update existing image record
                 img.file_path = str(path)
             else:
                 # Create new image record
