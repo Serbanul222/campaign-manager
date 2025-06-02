@@ -57,13 +57,21 @@ const useCampaigns = () => {
     }
   };
 
-  const getImageUrl = (campaignId, imageType) => {
-    const images = campaignImages[campaignId];
-    if (images && images[imageType] && images[imageType].url) {
-      return `http://localhost:5000${images[imageType].url}`;
+ const getImageUrl = (campaignId, imageType) => {
+  const images = campaignImages[campaignId];
+  if (images && images[imageType] && images[imageType].url) {
+    const url = images[imageType].url;
+    
+    // If backend returns full URL (starts with http), use it directly
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
     }
-    return null;
-  };
+    
+    // Otherwise it's a relative URL, prepend VM IP
+    return `http://192.168.103.111:5000${url}`;
+  }
+  return null;
+};
 
   const clearError = () => setError(null);
 
