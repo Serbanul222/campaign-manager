@@ -177,7 +177,7 @@ def create_app(config_class: type[Config] = Config) -> Flask:
                     if safe_args:
                         details["query_params"] = safe_args
                 
-                # Log the request
+            if user or is_auth_endpoint:
                 log = ActivityLog(
                     user_id=user.id if user else None,
                     action=action,
