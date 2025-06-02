@@ -1,0 +1,56 @@
+# Docker Compose configuration for Windows VM deployment
+# This file is specifically for running on Windows VM with IP 192.168.103.111
+# 
+# Usage:
+#   docker-compose -f docker-compose-windows.yml up --build
+#
+# This keeps your original docker-compose.yml intact for localhost development
+
+version: "3.8"
+services:
+  backend:
+    build: .
+    volumes:
+      - .:/app
+      # Mount your existing assets folder - CHANGE THIS PATH IF NEEDED
+      - "C:/Verificator Preturi App/assets:/app/assets"
+    ports:
+      # Bind to all interfaces so it's accessible from other machines
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - UPLOAD_FOLDER=/app/assets
+      # Override secret key for Windows deployment
+      - SECRET_KEY=windows_vm_secret_key_change_in_production
+    command: bash -c "python scripts/init_db.py && flask run --host=0.0.0.0 --reload"
+    networks:
+      - campaign_network
+
+  frontend:
+    build: ./campaign-manager-frontend
+    volumes:
+      # Only mount the source directory for hot reload
+      - ./campaign-manager-frontend/src:/app/src
+      # Mount Windows-specific config files
+      - ./campaign-manager-frontend/vite.config-windows.js:/app/vite.config.js
+      - ./campaign-manager-frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./campaign-manager-frontend/postcss.config.js:/app/postcss.config.js
+      - ./campaign-manager-frontend/index.html:/app/index.html
+      # Mount Windows-specific environment file
+      - ./campaign-manager-frontend/.env.windows:/app/.env
+    ports:
+      # Bind to all interfaces
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - FAST_REFRESH=false
+      - NODE_PATH=/app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - campaign_network
+
+networks:
+  campaign_network:
+    driver: bridge
