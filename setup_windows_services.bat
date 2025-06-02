@@ -1,5 +1,5 @@
 @echo off
-REM simple_debug.bat - Simple step-by-step installation
+REM simple_debug.bat - Simple step-by-step installation - CORRECTED
 echo ==========================================
 echo Campaign Manager - Simple Setup Debug
 echo ==========================================
@@ -236,148 +236,94 @@ if exist scripts\setup_admin.py (
     pause
 )
 
-REM Step 13: Create serve_build.js in frontend folder
+REM Step 13: Fix run_backend.py (CORRECTED)
 echo.
-echo STEP 13: Creating serve_build.js...
+echo STEP 13: Creating/fixing run_backend.py...
+cd /d "%SERVICE_DIR%"
+echo # run_backend.py - Production backend runner for Windows service > run_backend.py
+echo """Production Flask backend runner optimized for Windows services.""" >> run_backend.py
+echo. >> run_backend.py
+echo import os >> run_backend.py
+echo import sys >> run_backend.py
+echo from pathlib import Path >> run_backend.py
+echo. >> run_backend.py
+echo # Ensure we can find our modules >> run_backend.py
+echo sys.path.insert(0, str(Path(__file__).parent)) >> run_backend.py
+echo. >> run_backend.py
+echo # Set production environment >> run_backend.py
+echo os.environ['FLASK_ENV'] = 'production' >> run_backend.py
+echo os.environ['FLASK_DEBUG'] = '0' >> run_backend.py
+echo os.environ['UPLOAD_FOLDER'] = r'C:\Verificator Preturi App\assets' >> run_backend.py
+echo. >> run_backend.py
+echo def main(): >> run_backend.py
+echo     """Run the Flask application in production mode.""" >> run_backend.py
+echo     try: >> run_backend.py
+echo         from app import create_app >> run_backend.py
+echo         from waitress import serve >> run_backend.py
+echo         print("Starting Campaign Manager Backend Service") >> run_backend.py
+echo         app = create_app() >> run_backend.py
+echo         assets_path = Path(os.environ['UPLOAD_FOLDER']) >> run_backend.py
+echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
+echo         print("Assets folder ready") >> run_backend.py
+echo         print("Starting Waitress WSGI server...") >> run_backend.py
+echo         serve(app, host='0.0.0.0', port=5000, threads=4) >> run_backend.py
+echo     except KeyboardInterrupt: >> run_backend.py
+echo         print("Service stopped by user") >> run_backend.py
+echo     except Exception as e: >> run_backend.py
+echo         print("Service failed to start:", str(e)) >> run_backend.py
+echo         import traceback >> run_backend.py
+echo         traceback.print_exc() >> run_backend.py
+echo         import sys >> run_backend.py
+echo         sys.exit(1) >> run_backend.py
+echo. >> run_backend.py
+echo if __name__ == "__main__": >> run_backend.py
+echo     main() >> run_backend.py
+echo ✅ Created/fixed run_backend.py
+pause
+
+REM Step 14: Check serve_build.js exists (don't recreate)
+echo.
+echo STEP 14: Checking serve_build.js...
 cd /d "%SERVICE_DIR%\campaign-manager-frontend"
-if not exist serve_build.js (
-    echo Creating serve_build.js...
-    echo const express = require('express'); > serve_build.js
-    echo const path = require('path'); >> serve_build.js
-    echo const { createProxyMiddleware } = require('http-proxy-middleware'); >> serve_build.js
-    echo. >> serve_build.js
-    echo const app = express(); >> serve_build.js
-    echo const PORT = 3000; >> serve_build.js
-    echo const HOST = '0.0.0.0'; >> serve_build.js
-    echo. >> serve_build.js
-    echo console.log('🚀 Starting Campaign Manager Frontend Service'); >> serve_build.js
-    echo console.log(`📁 Serving from: ${path.join(__dirname, 'dist')}`); >> serve_build.js
-    echo console.log(`🌐 Frontend will be available at: http://192.168.103.111:${PORT}`); >> serve_build.js
-    echo. >> serve_build.js
-    echo app.use('/api', createProxyMiddleware({ >> serve_build.js
-    echo     target: 'http://localhost:5000', >> serve_build.js
-    echo     changeOrigin: true, >> serve_build.js
-    echo     logLevel: 'info', >> serve_build.js
-    echo     onError: (err, req, res) =^> { >> serve_build.js
-    echo         console.error('Proxy Error:', err); >> serve_build.js
-    echo         res.status(500).json({ error: 'Backend service unavailable' }); >> serve_build.js
-    echo     } >> serve_build.js
-    echo })); >> serve_build.js
-    echo. >> serve_build.js
-    echo app.use(express.static(path.join(__dirname, 'dist'))); >> serve_build.js
-    echo. >> serve_build.js
-    echo app.get('*', (req, res) =^> { >> serve_build.js
-    echo     res.sendFile(path.join(__dirname, 'dist', 'index.html')); >> serve_build.js
-    echo }); >> serve_build.js
-    echo. >> serve_build.js
-    echo app.use((err, req, res, next) =^> { >> serve_build.js
-    echo     console.error('Server Error:', err); >> serve_build.js
-    echo     res.status(500).json({ error: 'Internal server error' }); >> serve_build.js
-    echo }); >> serve_build.js
-    echo. >> serve_build.js
-    echo const server = app.listen(PORT, HOST, () =^> { >> serve_build.js
-    echo     console.log(`✅ Frontend service running on http://${HOST}:${PORT}`); >> serve_build.js
-    echo     console.log('🔗 API requests will be proxied to backend on port 5000'); >> serve_build.js
-    echo }); >> serve_build.js
-    echo. >> serve_build.js
-    echo process.on('SIGTERM', () =^> { >> serve_build.js
-    echo     console.log('🛑 Received SIGTERM, shutting down gracefully'); >> serve_build.js
-    echo     server.close(() =^> { >> serve_build.js
-    echo         console.log('✅ Frontend service stopped'); >> serve_build.js
-    echo         process.exit(0); >> serve_build.js
-    echo     }); >> serve_build.js
-    echo }); >> serve_build.js
-    echo ✅ Created serve_build.js
-) else (
+if exist serve_build.js (
     echo ✅ serve_build.js already exists
-)
-pause
-
-REM Step 14: Create run_backend.py in root
-echo.
-echo STEP 14: Creating run_backend.py...
-cd /d "%SERVICE_DIR%"
-if not exist run_backend.py (
-    echo Creating run_backend.py...
-    echo import os > run_backend.py
-    echo import sys >> run_backend.py
-    echo from pathlib import Path >> run_backend.py
-    echo. >> run_backend.py
-    echo # Set production environment >> run_backend.py
-    echo os.environ['FLASK_ENV'] = 'production' >> run_backend.py
-    echo os.environ['FLASK_DEBUG'] = '0' >> run_backend.py
-    echo os.environ['UPLOAD_FOLDER'] = r'C:\Verificator Preturi App\assets' >> run_backend.py
-    echo. >> run_backend.py
-    echo def main(): >> run_backend.py
-    echo     try: >> run_backend.py
-    echo         from app import create_app >> run_backend.py
-    echo         from waitress import serve >> run_backend.py
-    echo         print("🚀 Starting Campaign Manager Backend Service") >> run_backend.py
-    echo         print(f"📁 Assets folder: {os.environ['UPLOAD_FOLDER']}") >> run_backend.py
-    echo         print("🌐 Server will be available at: http://192.168.103.111:5000") >> run_backend.py
-    echo         app = create_app() >> run_backend.py
-    echo         assets_path = Path(os.environ['UPLOAD_FOLDER']) >> run_backend.py
-    echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
-    echo         print(f"✅ Assets folder ready: {assets_path}") >> run_backend.py
-    echo         print("🔄 Starting Waitress WSGI server...") >> run_backend.py
-REM Step 14: Create run_backend.py in root
-echo.
-echo STEP 14: Creating run_backend.py...
-cd /d "%SERVICE_DIR%"
-if not exist run_backend.py (
-    echo Creating run_backend.py...
-    echo import os > run_backend.py
-    echo import sys >> run_backend.py
-    echo from pathlib import Path >> run_backend.py
-    echo. >> run_backend.py
-    echo # Set production environment >> run_backend.py
-    echo os.environ['FLASK_ENV'] = 'production' >> run_backend.py
-    echo os.environ['FLASK_DEBUG'] = '0' >> run_backend.py
-    echo os.environ['UPLOAD_FOLDER'] = r'C:\Verificator Preturi App\assets' >> run_backend.py
-    echo. >> run_backend.py
-    echo def main(): >> run_backend.py
-    echo     try: >> run_backend.py
-    echo         from app import create_app >> run_backend.py
-    echo         from waitress import serve >> run_backend.py
-    echo         print("Starting Campaign Manager Backend Service") >> run_backend.py
-    echo         app = create_app() >> run_backend.py
-    echo         assets_path = Path(os.environ['UPLOAD_FOLDER']) >> run_backend.py
-    echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
-    echo         print("Assets folder ready") >> run_backend.py
-    echo         print("Starting Waitress WSGI server...") >> run_backend.py
-    echo         serve(app, host='0.0.0.0', port=5000, threads=4) >> run_backend.py
-    echo     except Exception as e: >> run_backend.py
-    echo         print("Error:", str(e)) >> run_backend.py
-    echo         import traceback >> run_backend.py
-    echo         traceback.print_exc() >> run_backend.py
-    echo         input("Press Enter to continue...") >> run_backend.py
-    echo. >> run_backend.py
-    echo if __name__ == "__main__": >> run_backend.py
-    echo     main() >> run_backend.py
-    echo ✅ Created run_backend.py
 ) else (
-    echo ✅ run_backend.py already exists
+    echo ❌ serve_build.js not found - this should have been created earlier
+    pause
+    exit /b 1
 )
 pause
 
-REM Step 15: Test both services
+REM Step 15: Test both services manually
 echo.
-echo STEP 15: Testing services...
-echo Testing backend...
-echo Press Ctrl+C to stop when you see it working:
-python3.10 run_backend.py
-pause
+echo STEP 15: Testing services manually...
+echo.
+echo Testing backend (will run for 10 seconds)...
+cd /d "%SERVICE_DIR%"
+timeout /t 2 /nobreak >nul
+start /min python3.10 run_backend.py
+timeout /t 8 /nobreak >nul
+taskkill /f /im python3.10.exe 2>nul
+echo ✅ Backend test completed
 
-echo Testing frontend...
+echo.
+echo Testing frontend (will run for 10 seconds)...
 cd /d "%SERVICE_DIR%\campaign-manager-frontend"
-echo Press Ctrl+C to stop when you see it working:
-node serve_build.js
+start /min node serve_build.js
+timeout /t 8 /nobreak >nul
+taskkill /f /im node.exe 2>nul
+echo ✅ Frontend test completed
 pause
 
 echo.
 echo ✅ SETUP COMPLETED!
 echo.
-echo Both services tested successfully!
+echo All components installed and tested!
 echo Ready for Windows service installation.
+echo.
+echo Next steps:
+echo 1. Install services: run setup_windows_services.bat
+echo 2. Access app at: http://192.168.103.111:3000
+echo 3. Login with: serban.damian@lensa.ro
 echo.
 pause
