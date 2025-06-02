@@ -1,268 +1,307 @@
 @echo off
-REM setup_windows_services_fixed.bat - Install Campaign Manager as Windows Services
+setlocal enabledelayedexpansion
+
+REM setup_windows_services_debug.bat - Debug version with error handling
 REM Run as Administrator
 
 echo ==========================================
-echo Campaign Manager - Windows Services Setup
+echo Campaign Manager - Windows Services Setup (DEBUG)
 echo ==========================================
 
+REM Prevent script from closing on errors
+set "ErrorFound=0"
+
+REM Function to handle errors
+:HandleError
+echo.
+echo ❌ ERROR at line %1: %2
+set "ErrorFound=1"
+echo Press any key to continue anyway, or Ctrl+C to stop...
+pause >nul
+goto :eof
+
 REM Check if running as admin
+echo 🔍 Checking administrator privileges...
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo ERROR: Must run as Administrator
     echo Right-click and select "Run as administrator"
-    pause
+    echo.
+    echo Press any key to exit...
+    pause >nul
     exit /b 1
 )
-
 echo ✅ Running as Administrator
 
 REM Configuration
-set SERVICE_DIR=C:\CampaignManager
-set ASSETS_DIR=C:\Verificator Preturi App\assets
-set PYTHON_PATH=python3.10
+echo 🔧 Setting up configuration...
+set "SERVICE_DIR=C:\CampaignManager"
+set "ASSETS_DIR=C:\Verificator Preturi App\assets"
+set "PYTHON_PATH=python3.10"
+echo Service Directory: %SERVICE_DIR%
+echo Assets Directory: %ASSETS_DIR%
+echo Python Path: %PYTHON_PATH%
+
+REM Check current directory
+echo.
+echo 📍 Current directory: %CD%
+echo 📁 Contents:
+dir /b | findstr /i "app.py" >nul && echo ✅ app.py found || echo ❌ app.py not found
+dir /b | findstr /i "requirements.txt" >nul && echo ✅ requirements.txt found || echo ❌ requirements.txt not found
+dir /b | findstr /i "campaign-manager-frontend" >nul && echo ✅ frontend folder found || echo ❌ frontend folder not found
 
 REM Check if Python 3.10 is installed
+echo.
+echo 🐍 Checking Python 3.10...
 %PYTHON_PATH% --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Python 3.10 not found. Please install Python 3.10 first.
-    echo Available from Microsoft Store or https://www.python.org/downloads/
+    call :HandleError %LINENO% "Python 3.10 not found"
+    echo Available Python versions:
+    python --version 2>nul && echo python: && python --version || echo python: Not found
+    python3 --version 2>nul && echo python3: && python3 --version || echo python3: Not found
+    python3.10 --version 2>nul && echo python3.10: && python3.10 --version || echo python3.10: Not found
     echo.
-    echo Current Python status:
-    python --version 2>nul && python --version || echo python: Not found
-    python3 --version 2>nul && python3 --version || echo python3: Not found
-    python3.10 --version 2>nul && python3.10 --version || echo python3.10: Not found
-    pause
+    echo Please ensure Python 3.10 is installed and available as 'python3.10'
+    echo Press any key to exit...
+    pause >nul
     exit /b 1
 )
-
 echo ✅ Python 3.10 found: 
 %PYTHON_PATH% --version
 
 REM Check if Node.js is installed
+echo.
+echo 🟢 Checking Node.js...
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Node.js not found. Please install Node.js first.
-    echo Download from: https://nodejs.org/
-    pause
+    call :HandleError %LINENO% "Node.js not found"
+    echo Please install Node.js from https://nodejs.org/
+    echo Press any key to exit...
+    pause >nul
     exit /b 1
 )
-
 echo ✅ Node.js found:
 node --version
 
 REM Create service directory
+echo.
 echo 📁 Creating service directory...
-if not exist "%SERVICE_DIR%" mkdir "%SERVICE_DIR%"
+if not exist "%SERVICE_DIR%" (
+    mkdir "%SERVICE_DIR%"
+    if %errorlevel% neq 0 (
+        call :HandleError %LINENO% "Failed to create service directory"
+        exit /b 1
+    )
+    echo ✅ Created: %SERVICE_DIR%
+) else (
+    echo ✅ Directory already exists: %SERVICE_DIR%
+)
 
 REM Copy application files
+echo.
 echo 📂 Copying application files...
-xcopy /E /I /Y "%~dp0*" "%SERVICE_DIR%\"
+echo From: %~dp0
+echo To: %SERVICE_DIR%\
+xcopy /E /I /Y /Q "%~dp0*" "%SERVICE_DIR%\"
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Failed to copy application files"
+    echo Source directory: %~dp0
+    echo Target directory: %SERVICE_DIR%\
+    echo Error level: %errorlevel%
+)
 
-REM Create assets directory if it doesn't exist
+REM Check assets directory
+echo.
+echo 📁 Checking assets directory...
 if not exist "%ASSETS_DIR%" (
-    echo 📁 Creating assets directory...
+    echo Creating assets directory...
     mkdir "%ASSETS_DIR%"
+    if %errorlevel% neq 0 (
+        call :HandleError %LINENO% "Failed to create assets directory"
+    )
 ) else (
     echo ✅ Assets directory already exists: %ASSETS_DIR%
 )
 
-REM Install Python dependencies with python3.10
-echo 🐍 Installing Python dependencies with Python 3.10...
+REM Change to service directory
+echo.
+echo 📂 Changing to service directory...
 cd /d "%SERVICE_DIR%"
-%PYTHON_PATH% -m pip install --upgrade pip
-%PYTHON_PATH% -m pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Failed to change to service directory"
+    exit /b 1
+)
+echo ✅ Working directory: %CD%
 
-REM Install additional Windows service dependencies
-echo 📦 Installing additional service dependencies...
+REM Check if requirements.txt exists
+echo.
+echo 📋 Checking requirements.txt...
+if not exist "requirements.txt" (
+    call :HandleError %LINENO% "requirements.txt not found in service directory"
+    echo Contents of service directory:
+    dir /b
+    echo Press any key to continue...
+    pause >nul
+    exit /b 1
+)
+echo ✅ requirements.txt found
+
+REM Install Python dependencies
+echo.
+echo 🐍 Installing Python dependencies...
+echo Running: %PYTHON_PATH% -m pip install --upgrade pip
+%PYTHON_PATH% -m pip install --upgrade pip
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Failed to upgrade pip"
+)
+
+echo.
+echo Running: %PYTHON_PATH% -m pip install -r requirements.txt
+%PYTHON_PATH% -m pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Failed to install requirements"
+    echo Contents of requirements.txt:
+    type requirements.txt
+    echo.
+    echo Trying individual installations...
+    %PYTHON_PATH% -m pip install Flask Flask-SQLAlchemy Flask-CORS
+    %PYTHON_PATH% -m pip install python-dotenv PyJWT Werkzeug bcrypt Pillow
+)
+
+echo.
+echo 📦 Installing service dependencies...
 %PYTHON_PATH% -m pip install pywin32 waitress
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Failed to install service dependencies"
+)
 
 REM Test Flask installation
+echo.
 echo 🧪 Testing Flask installation...
-%PYTHON_PATH% -c "
-try:
-    import flask
-    import flask_cors
-    print('✅ Flask and dependencies installed successfully!')
-    print('Flask version:', flask.__version__)
-except ImportError as e:
-    print('❌ Import error:', e)
-    exit(1)
-"
-
+%PYTHON_PATH% -c "import flask; print('Flask version:', flask.__version__)" 2>nul
 if %errorlevel% neq 0 (
-    echo ❌ Flask installation failed. Please check dependencies.
-    pause
+    call :HandleError %LINENO% "Flask import test failed"
+    echo Trying to diagnose...
+    %PYTHON_PATH% -c "import sys; print('Python path:', sys.path)"
+    %PYTHON_PATH% -m pip list | findstr -i flask
+)
+
+echo.
+echo ✅ Python setup complete! Press any key to continue with frontend setup...
+pause >nul
+
+REM Frontend setup
+echo.
+echo 🔧 Setting up frontend...
+cd /d "%SERVICE_DIR%\campaign-manager-frontend"
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Frontend directory not found"
+    echo Contents of service directory:
+    cd /d "%SERVICE_DIR%"
+    dir /b
+    echo Press any key to continue...
+    pause >nul
     exit /b 1
 )
 
-REM Fix PostCSS configuration for Windows
-echo 🔧 Fixing PostCSS configuration...
-cd /d "%SERVICE_DIR%\campaign-manager-frontend"
-echo module.exports = { > postcss.config.js
-echo   plugins: { >> postcss.config.js
-echo     tailwindcss: {}, >> postcss.config.js
-echo     autoprefixer: {}, >> postcss.config.js
-echo   }, >> postcss.config.js
-echo } >> postcss.config.js
+echo ✅ In frontend directory: %CD%
 
-REM Update package.json to include express dependencies
+REM Fix PostCSS configuration
+echo.
+echo 🔧 Fixing PostCSS configuration...
+(
+echo module.exports = {
+echo   plugins: {
+echo     tailwindcss: {},
+echo     autoprefixer: {},
+echo   },
+echo }
+) > postcss.config.js
+echo ✅ PostCSS config updated
+
+REM Install frontend dependencies
+echo.
 echo 📦 Installing frontend dependencies...
 call npm install
-call npm install express http-proxy-middleware
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "npm install failed"
+    echo Trying with --legacy-peer-deps...
+    call npm install --legacy-peer-deps
+)
 
-REM Build React frontend
+echo.
+echo 📦 Installing express dependencies...
+call npm install express http-proxy-middleware
+if %errorlevel% neq 0 (
+    call :HandleError %LINENO% "Failed to install express dependencies"
+)
+
+echo.
+echo ✅ Frontend dependencies installed! Press any key to continue with build...
+pause >nul
+
+REM Build frontend
+echo.
 echo ⚛️ Building React frontend...
 call npm run build
-
 if %errorlevel% neq 0 (
-    echo ❌ Frontend build failed. Checking for issues...
-    echo Trying to fix and rebuild...
-    
-    REM Try to fix common build issues
-    call npm install --legacy-peer-deps
-    call npm run build
-    
-    if %errorlevel% neq 0 (
-        echo ❌ Frontend build still failing. Please check the errors above.
-        echo You can continue with backend setup and fix frontend later.
-        set /p continue=Continue anyway? (y/n): 
-        if /i not "!continue!"=="y" exit /b 1
-    )
+    call :HandleError %LINENO% "Frontend build failed"
+    echo Build error occurred. Check the output above.
+    echo Press any key to continue anyway...
+    pause >nul
 )
 
-REM Create production environment file
-echo 🔧 Creating production environment...
-echo VITE_API_URL=http://192.168.103.111:5000 > .env.production
+echo.
+echo ✅ Build process completed! Press any key to continue with database setup...
+pause >nul
 
-REM Initialize database with python3.10
-echo 💾 Initializing database...
+REM Database setup
+echo.
+echo 💾 Setting up database...
 cd /d "%SERVICE_DIR%"
-%PYTHON_PATH% scripts\init_db.py
+echo Current directory: %CD%
 
-if %errorlevel% neq 0 (
-    echo ❌ Database initialization failed.
-    pause
-    exit /b 1
-)
-
-%PYTHON_PATH% scripts\setup_admin.py
-
-if %errorlevel% neq 0 (
-    echo ❌ Admin setup failed.
-    pause
-    exit /b 1
-)
-
-echo ✅ Database and admin setup complete!
-
-REM Install services using NSSM (Non-Sucking Service Manager)
-echo 📥 Downloading NSSM (Service Manager)...
-powershell -Command "& {
-    try {
-        Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile 'nssm.zip'
-        Expand-Archive -Path 'nssm.zip' -DestinationPath '.' -Force
-        Copy-Item '.\nssm-2.24\win64\nssm.exe' '.\nssm.exe' -Force
-        Write-Host '✅ NSSM downloaded successfully'
-    } catch {
-        Write-Host '❌ Failed to download NSSM:' $_.Exception.Message
-        exit 1
-    }
-}"
-
-if %errorlevel% neq 0 (
-    echo ❌ Failed to download NSSM. Please download manually from https://nssm.cc/
-    pause
-    exit /b 1
-)
-
-REM Remove existing services if they exist
-echo 🧹 Cleaning up existing services...
-net stop CampaignManagerBackend 2>nul
-net stop CampaignManagerFrontend 2>nul
-.\nssm.exe remove CampaignManagerBackend confirm 2>nul
-.\nssm.exe remove CampaignManagerFrontend confirm 2>nul
-
-echo 🔧 Installing Backend Service with Python 3.10...
-.\nssm.exe install CampaignManagerBackend "%PYTHON_PATH%" "%SERVICE_DIR%\run_backend.py"
-.\nssm.exe set CampaignManagerBackend AppDirectory "%SERVICE_DIR%"
-.\nssm.exe set CampaignManagerBackend DisplayName "Campaign Manager Backend"
-.\nssm.exe set CampaignManagerBackend Description "Campaign Manager Flask Backend Service (Python 3.10)"
-.\nssm.exe set CampaignManagerBackend Start SERVICE_AUTO_START
-
-echo 🔧 Installing Frontend Service...
-.\nssm.exe install CampaignManagerFrontend "node" "%SERVICE_DIR%\campaign-manager-frontend\serve_build.js"
-.\nssm.exe set CampaignManagerFrontend AppDirectory "%SERVICE_DIR%\campaign-manager-frontend"
-.\nssm.exe set CampaignManagerFrontend DisplayName "Campaign Manager Frontend"
-.\nssm.exe set CampaignManagerFrontend Description "Campaign Manager React Frontend Service"
-.\nssm.exe set CampaignManagerFrontend Start SERVICE_AUTO_START
-
-echo ▶️ Starting services...
-echo Starting backend service...
-net start CampaignManagerBackend
-
-if %errorlevel% neq 0 (
-    echo ❌ Backend service failed to start. Checking logs...
-    .\nssm.exe status CampaignManagerBackend
-    echo.
-    echo You can check detailed logs with: 
-    echo services.msc (look for Campaign Manager Backend)
-    echo.
-    echo Testing backend manually...
-    echo Press Ctrl+C to stop when you see it working:
-    %PYTHON_PATH% run_backend.py
+if exist "scripts\init_db.py" (
+    echo Running database initialization...
+    %PYTHON_PATH% scripts\init_db.py
+    if %errorlevel% neq 0 (
+        call :HandleError %LINENO% "Database initialization failed"
+    )
 ) else (
-    echo ✅ Backend service started successfully
+    call :HandleError %LINENO% "init_db.py not found in scripts directory"
+    echo Contents of scripts directory:
+    dir scripts\ /b 2>nul || echo Scripts directory not found
 )
 
-echo Starting frontend service...
-net start CampaignManagerFrontend
-
-if %errorlevel% neq 0 (
-    echo ❌ Frontend service failed to start. You can start it manually later.
+if exist "scripts\setup_admin.py" (
+    echo Setting up admin user...
+    %PYTHON_PATH% scripts\setup_admin.py
+    if %errorlevel% neq 0 (
+        call :HandleError %LINENO% "Admin setup failed"
+    )
 ) else (
-    echo ✅ Frontend service started successfully
-)
-
-REM Configure Windows Firewall
-echo 🛡️ Configuring firewall...
-netsh advfirewall firewall add rule name="Campaign Manager Backend" dir=in action=allow protocol=TCP localport=5000 2>nul
-netsh advfirewall firewall add rule name="Campaign Manager Frontend" dir=in action=allow protocol=TCP localport=3000 2>nul
-
-echo ✅ Windows Services Installation Complete!
-echo.
-echo 🌐 Your application should be available at:
-echo    Frontend: http://192.168.103.111:3000
-echo    Backend:  http://192.168.103.111:5000
-echo    Health:   http://192.168.103.111:5000/api/health
-echo.
-echo 🧪 Testing connectivity...
-timeout /t 5 /nobreak >nul
-curl -s http://localhost:5000/api/health >nul 2>&1
-if %errorlevel% equ 0 (
-    echo ✅ Backend is responding
-) else (
-    echo ⚠️ Backend not responding yet - may need more time to start
-)
-
-curl -s http://localhost:3000 >nul 2>&1
-if %errorlevel% equ 0 (
-    echo ✅ Frontend is responding
-) else (
-    echo ⚠️ Frontend not responding yet
+    call :HandleError %LINENO% "setup_admin.py not found"
 )
 
 echo.
-echo 🔧 Service Management Commands:
-echo    Check Status:    services.msc
-echo    Start Backend:   net start CampaignManagerBackend
-echo    Stop Backend:    net stop CampaignManagerBackend
-echo    Start Frontend:  net start CampaignManagerFrontend
-echo    Stop Frontend:   net stop CampaignManagerFrontend
-echo    Backend Logs:    .\nssm.exe status CampaignManagerBackend
+echo ✅ Database setup completed! 
 echo.
-echo 📁 Campaign files will be created in: %ASSETS_DIR%
+echo Summary of errors found: %ErrorFound%
+if "%ErrorFound%"=="1" (
+    echo ⚠️ Some errors were encountered but ignored.
+    echo The setup may still work. Continue? (y/n)
+    set /p continue=
+    if /i not "!continue!"=="y" exit /b 1
+)
+
 echo.
-echo 🚀 Setup complete! Try accessing the application now.
+echo 🎉 Core setup completed successfully!
+echo Press any key to continue with service installation...
+pause >nul
+
 echo.
-pause
+echo 🔧 Service installation would continue from here...
+echo (Stopping here for debugging - you can add the service installation part if this works)
+echo.
+echo Press any key to exit...
+pause >nul
