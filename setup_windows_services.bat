@@ -320,4 +320,64 @@ if not exist run_backend.py (
     echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
     echo         print(f"✅ Assets folder ready: {assets_path}") >> run_backend.py
     echo         print("🔄 Starting Waitress WSGI server...") >> run_backend.py
+REM Step 14: Create run_backend.py in root
+echo.
+echo STEP 14: Creating run_backend.py...
+cd /d "%SERVICE_DIR%"
+if not exist run_backend.py (
+    echo Creating run_backend.py...
+    echo import os > run_backend.py
+    echo import sys >> run_backend.py
+    echo from pathlib import Path >> run_backend.py
+    echo. >> run_backend.py
+    echo # Set production environment >> run_backend.py
+    echo os.environ['FLASK_ENV'] = 'production' >> run_backend.py
+    echo os.environ['FLASK_DEBUG'] = '0' >> run_backend.py
+    echo os.environ['UPLOAD_FOLDER'] = r'C:\Verificator Preturi App\assets' >> run_backend.py
+    echo. >> run_backend.py
+    echo def main(): >> run_backend.py
+    echo     try: >> run_backend.py
+    echo         from app import create_app >> run_backend.py
+    echo         from waitress import serve >> run_backend.py
+    echo         print("Starting Campaign Manager Backend Service") >> run_backend.py
+    echo         app = create_app() >> run_backend.py
+    echo         assets_path = Path(os.environ['UPLOAD_FOLDER']) >> run_backend.py
+    echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
+    echo         print("Assets folder ready") >> run_backend.py
+    echo         print("Starting Waitress WSGI server...") >> run_backend.py
     echo         serve(app, host='0.0.0.0', port=5000, threads=4) >> run_backend.py
+    echo     except Exception as e: >> run_backend.py
+    echo         print("Error:", str(e)) >> run_backend.py
+    echo         import traceback >> run_backend.py
+    echo         traceback.print_exc() >> run_backend.py
+    echo         input("Press Enter to continue...") >> run_backend.py
+    echo. >> run_backend.py
+    echo if __name__ == "__main__": >> run_backend.py
+    echo     main() >> run_backend.py
+    echo ✅ Created run_backend.py
+) else (
+    echo ✅ run_backend.py already exists
+)
+pause
+
+REM Step 15: Test both services
+echo.
+echo STEP 15: Testing services...
+echo Testing backend...
+echo Press Ctrl+C to stop when you see it working:
+python3.10 run_backend.py
+pause
+
+echo Testing frontend...
+cd /d "%SERVICE_DIR%\campaign-manager-frontend"
+echo Press Ctrl+C to stop when you see it working:
+node serve_build.js
+pause
+
+echo.
+echo ✅ SETUP COMPLETED!
+echo.
+echo Both services tested successfully!
+echo Ready for Windows service installation.
+echo.
+pause
