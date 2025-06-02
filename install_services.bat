@@ -57,9 +57,20 @@ net stop CampaignManagerFrontend 2>nul
 
 echo ✅ Cleanup completed
 
+REM Detect Python installation path
+echo 🔍 Detecting Python installation...
+for /f "tokens=*" %%i in ('where python 2^>nul') do set PYTHON_PATH=%%i
+if "%PYTHON_PATH%"=="" (
+    echo ❌ Python not found in PATH
+    echo Please make sure Python is installed and added to PATH
+    pause
+    exit /b 1
+)
+echo ✅ Found Python at: %PYTHON_PATH%
+
 REM Install Backend Service
 echo 🔧 Installing Backend Service...
-.\nssm.exe install CampaignManagerBackend "C:\Users\Verificator Preturi\AppData\Local\Microsoft\WindowsApps\python3.10.exe" "C:\CampaignManager\run_backend.py"
+.\nssm.exe install CampaignManagerBackend "%PYTHON_PATH%" "C:\CampaignManager\run_backend.py"
 .\nssm.exe set CampaignManagerBackend AppDirectory "C:\CampaignManager"
 .\nssm.exe set CampaignManagerBackend DisplayName "Campaign Manager Backend"
 .\nssm.exe set CampaignManagerBackend Description "Campaign Manager Flask Backend Service"
@@ -67,9 +78,20 @@ echo 🔧 Installing Backend Service...
 .\nssm.exe set CampaignManagerBackend AppStdout "C:\CampaignManager\backend-stdout.log"
 .\nssm.exe set CampaignManagerBackend AppStderr "C:\CampaignManager\backend-stderr.log"
 
+REM Detect Node installation path
+echo 🔍 Detecting Node.js installation...
+for /f "tokens=*" %%i in ('where node 2^>nul') do set NODE_PATH=%%i
+if "%NODE_PATH%"=="" (
+    echo ❌ Node.js not found in PATH
+    echo Please make sure Node.js is installed and added to PATH
+    pause
+    exit /b 1
+)
+echo ✅ Found Node.js at: %NODE_PATH%
+
 REM Install Frontend Service
 echo 🔧 Installing Frontend Service...
-.\nssm.exe install CampaignManagerFrontend "node" "C:\CampaignManager\campaign-manager-frontend\serve_build.js"
+.\nssm.exe install CampaignManagerFrontend "%NODE_PATH%" "C:\CampaignManager\campaign-manager-frontend\serve_build.js"
 .\nssm.exe set CampaignManagerFrontend AppDirectory "C:\CampaignManager\campaign-manager-frontend"
 .\nssm.exe set CampaignManagerFrontend DisplayName "Campaign Manager Frontend"
 .\nssm.exe set CampaignManagerFrontend Description "Campaign Manager React Frontend Service"
@@ -89,7 +111,16 @@ net start CampaignManagerBackend
 if %errorlevel% neq 0 (
     echo ❌ Backend service failed to start
     echo Checking error logs...
-    type C:\CampaignManager\backend-stderr.log
+    if exist "C:\CampaignManager\backend-stderr.log" (
+        echo Backend stderr log:
+        type C:\CampaignManager\backend-stderr.log
+    ) else (
+        echo No backend error log found
+    )
+    echo.
+    echo Manual test - try running:
+    echo cd C:\CampaignManager
+    echo python run_backend.py
     pause
 ) else (
     echo ✅ Backend service started
@@ -100,7 +131,16 @@ net start CampaignManagerFrontend
 if %errorlevel% neq 0 (
     echo ❌ Frontend service failed to start
     echo Checking error logs...
-    type C:\CampaignManager\frontend-stderr.log
+    if exist "C:\CampaignManager\frontend-stderr.log" (
+        echo Frontend stderr log:
+        type C:\CampaignManager\frontend-stderr.log
+    ) else (
+        echo No frontend error log found
+    )
+    echo.
+    echo Manual test - try running:
+    echo cd C:\CampaignManager\campaign-manager-frontend
+    echo node serve_build.js
     pause
 ) else (
     echo ✅ Frontend service started
@@ -114,14 +154,14 @@ curl -s http://localhost:5000/api/health >nul 2>&1
 if %errorlevel% equ 0 (
     echo ✅ Backend is responding
 ) else (
-    echo ⚠️ Backend not responding yet
+    echo ⚠️ Backend not responding yet - may need more time to start
 )
 
 curl -s http://localhost:3000 >nul 2>&1
 if %errorlevel% equ 0 (
     echo ✅ Frontend is responding
 ) else (
-    echo ⚠️ Frontend not responding yet
+    echo ⚠️ Frontend not responding yet - may need more time to start
 )
 
 echo.
@@ -144,5 +184,14 @@ echo    net stop CampaignManagerFrontend
 echo.
 echo 📁 Campaign files will be created in:
 echo    C:\Verificator Preturi App\assets
+echo.
+echo 🛠️ Troubleshooting:
+echo If services don't start, check logs at:
+echo    C:\CampaignManager\backend-stderr.log
+echo    C:\CampaignManager\frontend-stderr.log
+echo.
+echo Or test manually:
+echo    cd C:\CampaignManager && python run_backend.py
+echo    cd C:\CampaignManager\campaign-manager-frontend && node serve_build.js
 echo.
 pause

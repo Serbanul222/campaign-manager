@@ -1,5 +1,5 @@
 @echo off
-REM simple_debug.bat - Simple step-by-step installation - CORRECTED
+REM simple_debug.bat - Simple step-by-step installation - Updated for Official Python
 echo ==========================================
 echo Campaign Manager - Simple Setup Debug
 echo ==========================================
@@ -16,16 +16,18 @@ echo ✅ Running as Administrator
 REM Step 1: Check Python
 echo.
 echo STEP 1: Checking Python...
-python3.10 --version
+python --version
 if %errorlevel% neq 0 (
-    echo ❌ Python 3.10 not found
+    echo ❌ Python not found
     echo Available Python commands:
-    python --version 2>nul || echo python: Not found
     python3 --version 2>nul || echo python3: Not found
+    py --version 2>nul || echo py: Not found
+    echo.
+    echo Please install Python 3.10 from python.org
     pause
     exit /b 1
 )
-echo ✅ Python 3.10 OK
+echo ✅ Python OK
 pause
 
 REM Step 2: Check Node
@@ -117,31 +119,31 @@ REM Step 7: Install Python dependencies
 echo.
 echo STEP 7: Installing Python dependencies...
 echo Upgrading pip...
-python3.10 -m pip install --upgrade pip
+python -m pip install --upgrade pip
 echo.
 echo Installing requirements...
-python3.10 -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo ❌ Requirements installation failed
     echo Trying individual packages...
-    python3.10 -m pip install Flask==2.3.2
-    python3.10 -m pip install Flask-SQLAlchemy==3.0.5
-    python3.10 -m pip install Flask-CORS==4.0.0
-    python3.10 -m pip install python-dotenv==1.0.0
-    python3.10 -m pip install PyJWT==2.8.0
-    python3.10 -m pip install Werkzeug==2.3.6
-    python3.10 -m pip install bcrypt==4.0.1
-    python3.10 -m pip install Pillow==10.0.0
+    python -m pip install Flask==2.3.2
+    python -m pip install Flask-SQLAlchemy==3.0.5
+    python -m pip install Flask-CORS==4.0.0
+    python -m pip install python-dotenv==1.0.0
+    python -m pip install PyJWT==2.8.0
+    python -m pip install Werkzeug==2.3.6
+    python -m pip install bcrypt==4.0.1
+    python -m pip install Pillow==10.0.0
 )
 echo.
 echo Installing service dependencies...
-python3.10 -m pip install pywin32 waitress
+python -m pip install pywin32 waitress
 pause
 
 REM Step 8: Test Flask
 echo.
 echo STEP 8: Testing Flask import...
-python3.10 -c "import flask; print('✅ Flask version:', flask.__version__)"
+python -c "import flask; print('✅ Flask version:', flask.__version__)"
 if %errorlevel% neq 0 (
     echo ❌ Flask import failed
     pause
@@ -208,7 +210,7 @@ echo Current directory: %CD%
 
 if exist scripts\init_db.py (
     echo Running database initialization...
-    python3.10 scripts\init_db.py
+    python scripts\init_db.py
     if %errorlevel% neq 0 (
         echo ❌ Database init failed
         pause
@@ -224,7 +226,7 @@ if exist scripts\init_db.py (
 
 if exist scripts\setup_admin.py (
     echo Setting up admin user...
-    python3.10 scripts\setup_admin.py
+    python scripts\setup_admin.py
     if %errorlevel% neq 0 (
         echo ❌ Admin setup failed
         pause
@@ -260,20 +262,37 @@ echo     """Run the Flask application in production mode.""" >> run_backend.py
 echo     try: >> run_backend.py
 echo         from app import create_app >> run_backend.py
 echo         from waitress import serve >> run_backend.py
-echo         print("Starting Campaign Manager Backend Service") >> run_backend.py
+echo         print("🚀 Starting Campaign Manager Backend Service") >> run_backend.py
+echo         print(f"📁 Assets folder: {os.environ['UPLOAD_FOLDER']}") >> run_backend.py
+echo         print("🌐 Server will be available at: http://192.168.103.111:5000") >> run_backend.py
+echo         >> run_backend.py
+echo         # Create Flask app >> run_backend.py
 echo         app = create_app() >> run_backend.py
+echo         >> run_backend.py
+echo         # Ensure assets folder exists >> run_backend.py
 echo         assets_path = Path(os.environ['UPLOAD_FOLDER']) >> run_backend.py
 echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
-echo         print("Assets folder ready") >> run_backend.py
-echo         print("Starting Waitress WSGI server...") >> run_backend.py
-echo         serve(app, host='0.0.0.0', port=5000, threads=4) >> run_backend.py
+echo         >> run_backend.py
+echo         print(f"✅ Assets folder ready: {assets_path}") >> run_backend.py
+echo         print("🔄 Starting Waitress WSGI server...") >> run_backend.py
+echo         >> run_backend.py
+echo         # Use Waitress for production WSGI server >> run_backend.py
+echo         serve( >> run_backend.py
+echo             app, >> run_backend.py
+echo             host='0.0.0.0',  # Listen on all interfaces >> run_backend.py
+echo             port=5000, >> run_backend.py
+echo             threads=4, >> run_backend.py
+echo             channel_timeout=300, >> run_backend.py
+echo             cleanup_interval=30, >> run_backend.py
+echo             log_socket_errors=True >> run_backend.py
+echo         ) >> run_backend.py
+echo         >> run_backend.py
 echo     except KeyboardInterrupt: >> run_backend.py
-echo         print("Service stopped by user") >> run_backend.py
+echo         print("\n🛑 Service stopped by user") >> run_backend.py
 echo     except Exception as e: >> run_backend.py
-echo         print("Service failed to start:", str(e)) >> run_backend.py
+echo         print(f"❌ Service failed to start: {e}") >> run_backend.py
 echo         import traceback >> run_backend.py
 echo         traceback.print_exc() >> run_backend.py
-echo         import sys >> run_backend.py
 echo         sys.exit(1) >> run_backend.py
 echo. >> run_backend.py
 echo if __name__ == "__main__": >> run_backend.py
@@ -301,9 +320,9 @@ echo.
 echo Testing backend (will run for 10 seconds)...
 cd /d "%SERVICE_DIR%"
 timeout /t 2 /nobreak >nul
-start /min python3.10 run_backend.py
+start /min python run_backend.py
 timeout /t 8 /nobreak >nul
-taskkill /f /im python3.10.exe 2>nul
+taskkill /f /im python.exe 2>nul
 echo ✅ Backend test completed
 
 echo.
@@ -322,7 +341,7 @@ echo All components installed and tested!
 echo Ready for Windows service installation.
 echo.
 echo Next steps:
-echo 1. Install services: run setup_windows_services.bat
+echo 1. Install services: run install_services.bat
 echo 2. Access app at: http://192.168.103.111:3000
 echo 3. Login with: serban.damian@lensa.ro
 echo.
