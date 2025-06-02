@@ -236,12 +236,88 @@ if exist scripts\setup_admin.py (
     pause
 )
 
+REM Step 13: Create serve_build.js in frontend folder
 echo.
-echo ✅ SETUP COMPLETED!
-echo.
-echo Next steps:
-echo 1. Test backend manually: python3.10 run_backend.py
-echo 2. Test frontend manually: cd campaign-manager-frontend && node serve_build.js
-echo 3. If both work, we can set up the Windows services
-echo.
+echo STEP 13: Creating serve_build.js...
+cd /d "%SERVICE_DIR%\campaign-manager-frontend"
+if not exist serve_build.js (
+    echo Creating serve_build.js...
+    echo const express = require('express'); > serve_build.js
+    echo const path = require('path'); >> serve_build.js
+    echo const { createProxyMiddleware } = require('http-proxy-middleware'); >> serve_build.js
+    echo. >> serve_build.js
+    echo const app = express(); >> serve_build.js
+    echo const PORT = 3000; >> serve_build.js
+    echo const HOST = '0.0.0.0'; >> serve_build.js
+    echo. >> serve_build.js
+    echo console.log('🚀 Starting Campaign Manager Frontend Service'); >> serve_build.js
+    echo console.log(`📁 Serving from: ${path.join(__dirname, 'dist')}`); >> serve_build.js
+    echo console.log(`🌐 Frontend will be available at: http://192.168.103.111:${PORT}`); >> serve_build.js
+    echo. >> serve_build.js
+    echo app.use('/api', createProxyMiddleware({ >> serve_build.js
+    echo     target: 'http://localhost:5000', >> serve_build.js
+    echo     changeOrigin: true, >> serve_build.js
+    echo     logLevel: 'info', >> serve_build.js
+    echo     onError: (err, req, res) =^> { >> serve_build.js
+    echo         console.error('Proxy Error:', err); >> serve_build.js
+    echo         res.status(500).json({ error: 'Backend service unavailable' }); >> serve_build.js
+    echo     } >> serve_build.js
+    echo })); >> serve_build.js
+    echo. >> serve_build.js
+    echo app.use(express.static(path.join(__dirname, 'dist'))); >> serve_build.js
+    echo. >> serve_build.js
+    echo app.get('*', (req, res) =^> { >> serve_build.js
+    echo     res.sendFile(path.join(__dirname, 'dist', 'index.html')); >> serve_build.js
+    echo }); >> serve_build.js
+    echo. >> serve_build.js
+    echo app.use((err, req, res, next) =^> { >> serve_build.js
+    echo     console.error('Server Error:', err); >> serve_build.js
+    echo     res.status(500).json({ error: 'Internal server error' }); >> serve_build.js
+    echo }); >> serve_build.js
+    echo. >> serve_build.js
+    echo const server = app.listen(PORT, HOST, () =^> { >> serve_build.js
+    echo     console.log(`✅ Frontend service running on http://${HOST}:${PORT}`); >> serve_build.js
+    echo     console.log('🔗 API requests will be proxied to backend on port 5000'); >> serve_build.js
+    echo }); >> serve_build.js
+    echo. >> serve_build.js
+    echo process.on('SIGTERM', () =^> { >> serve_build.js
+    echo     console.log('🛑 Received SIGTERM, shutting down gracefully'); >> serve_build.js
+    echo     server.close(() =^> { >> serve_build.js
+    echo         console.log('✅ Frontend service stopped'); >> serve_build.js
+    echo         process.exit(0); >> serve_build.js
+    echo     }); >> serve_build.js
+    echo }); >> serve_build.js
+    echo ✅ Created serve_build.js
+) else (
+    echo ✅ serve_build.js already exists
+)
 pause
+
+REM Step 14: Create run_backend.py in root
+echo.
+echo STEP 14: Creating run_backend.py...
+cd /d "%SERVICE_DIR%"
+if not exist run_backend.py (
+    echo Creating run_backend.py...
+    echo import os > run_backend.py
+    echo import sys >> run_backend.py
+    echo from pathlib import Path >> run_backend.py
+    echo. >> run_backend.py
+    echo # Set production environment >> run_backend.py
+    echo os.environ['FLASK_ENV'] = 'production' >> run_backend.py
+    echo os.environ['FLASK_DEBUG'] = '0' >> run_backend.py
+    echo os.environ['UPLOAD_FOLDER'] = r'C:\Verificator Preturi App\assets' >> run_backend.py
+    echo. >> run_backend.py
+    echo def main(): >> run_backend.py
+    echo     try: >> run_backend.py
+    echo         from app import create_app >> run_backend.py
+    echo         from waitress import serve >> run_backend.py
+    echo         print("🚀 Starting Campaign Manager Backend Service") >> run_backend.py
+    echo         print(f"📁 Assets folder: {os.environ['UPLOAD_FOLDER']}") >> run_backend.py
+    echo         print("🌐 Server will be available at: http://192.168.103.111:5000") >> run_backend.py
+    echo         app = create_app() >> run_backend.py
+    echo         assets_path = Path(os.environ['UPLOAD_FOLDER']) >> run_backend.py
+    echo         assets_path.mkdir(parents=True, exist_ok=True) >> run_backend.py
+    echo         print(f"✅ Assets folder ready: {assets_path}") >> run_backend.py
+    echo         print("🔄 Starting Waitress WSGI server...") >> run_backend.py
+    echo         serve(app, host='0.0.0.0', port=5000, threads=4) >> run_backend.py
