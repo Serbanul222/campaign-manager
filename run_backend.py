@@ -19,9 +19,9 @@ def main():
         from app import create_app
         from waitress import serve
         
-        print("🚀 Starting Campaign Manager Backend Service")
-        print(f"📁 Assets folder: {os.environ['UPLOAD_FOLDER']}")
-        print("🌐 Server will be available at: http://192.168.103.111:5000")
+        print("Starting Campaign Manager Backend Service")
+        print(f"Assets folder: {os.environ['UPLOAD_FOLDER']}")
+        print("Server will be available at: http://192.168.103.111:5000")
         
         # Create Flask app
         app = create_app()
@@ -30,8 +30,8 @@ def main():
         assets_path = Path(os.environ['UPLOAD_FOLDER'])
         assets_path.mkdir(parents=True, exist_ok=True)
         
-        print(f"✅ Assets folder ready: {assets_path}")
-        print("🔄 Starting Waitress WSGI server...")
+        print(f"Assets folder ready: {assets_path}")
+        print("Starting Waitress WSGI server...")
         
         # Use Waitress for production WSGI server
         serve(
@@ -45,9 +45,9 @@ def main():
         )
         
     except KeyboardInterrupt:
-        print("\n🛑 Service stopped by user")
+        print("Service stopped by user")
     except Exception as e:
-        print(f"❌ Service failed to start: {e}")
+        print(f"ERROR: Service failed to start: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
