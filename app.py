@@ -43,7 +43,12 @@ def create_app(config_class: type[Config] = Config) -> Flask:
     
     # Enhanced CORS configuration
     CORS(app, 
-         origins=["http://localhost:5173", "http://127.0.0.1:5173"], 
+         origins=["http://localhost:5173", 
+         "http://127.0.0.1:5173" ,
+         "http://localhost:3000",
+         "http://127.0.0.1:3000",
+         "http://192.168.103.111:3000",     # Add VM IP access
+         "http://192.168.103.111:5173"], 
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          supports_credentials=True,
