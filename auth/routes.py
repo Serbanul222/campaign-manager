@@ -1,13 +1,33 @@
-# auth/routes.py - Enhanced with comprehensive logging
+# auth/routes.py - Clean rewrite with proper imports and error handling
 from flask import Blueprint, jsonify, request, g
 import json
 
-from models import User, db
+from models import User, ActivityLog, db
 from .jwt_handler import create_token
 from .decorators import jwt_required, log_activity
 
 
 bp = Blueprint("auth", __name__)
+
+
+def _log_activity(user_id, action, status, details_dict):
+    """Helper function to safely log activity."""
+    try:
+        log = ActivityLog(
+            user_id=user_id,
+            action=action,
+            status=status,
+            ip_address=request.remote_addr,
+            details=json.dumps(details_dict)
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        print(f"Failed to log activity: {e}")
+        try:
+            db.session.rollback()
+        except:
+            pass
 
 
 @bp.route("/login", methods=["POST"])
@@ -23,79 +43,60 @@ def login():
     
     user = User.query.filter_by(email=email).first()
     
-    # Track login attempt details
+    # Prepare login attempt details
     attempt_details = {
         "email": email,
         "ip_address": request.remote_addr,
         "user_agent": request.headers.get("User-Agent", "")[:255]
     }
     
+    # User not found
     if not user:
-        # Update log with failed attempt
-        from models import ActivityLog
-        log = ActivityLog(
+        _log_activity(
             user_id=None,
             action="login_failed",
             status="error",
-            ip_address=request.remote_addr,
-            details=json.dumps({**attempt_details, "reason": "email_not_authorized"})
+            details_dict={**attempt_details, "reason": "email_not_authorized"}
         )
-        db.session.add(log)
-        db.session.commit()
-        
         return jsonify({"message": "Email not authorized"}), 401
     
-    # If user exists but has no password set (first time login)
+    # First time login (no password set)
     if not user.password_hash or user.password_hash == "":
-        # Log first-time login detection
-        log = ActivityLog(
+        _log_activity(
             user_id=user.id,
             action="first_time_login_detected",
             status="success",
-            ip_address=request.remote_addr,
-            details=json.dumps({**attempt_details, "requires_password_setup": True})
+            details_dict={**attempt_details, "requires_password_setup": True}
         )
-        db.session.add(log)
-        db.session.commit()
-        
         return jsonify({
             "message": "First time login - password required",
             "requires_password_setup": True,
             "email": email
         }), 200
     
-    # Normal login flow
+    # Wrong password
     if not user.check_password(password):
-        # Log failed login
-        log = ActivityLog(
+        _log_activity(
             user_id=user.id,
             action="login_failed",
             status="error",
-            ip_address=request.remote_addr,
-            details=json.dumps({**attempt_details, "reason": "invalid_password"})
+            details_dict={**attempt_details, "reason": "invalid_password"}
         )
-        db.session.add(log)
-        db.session.commit()
-        
         return jsonify({"message": "Invalid credentials"}), 401
     
     # Successful login
     token = create_token(user.id)
     
-    # Log successful login
-    log = ActivityLog(
+    _log_activity(
         user_id=user.id,
         action="login_success",
         status="success",
-        ip_address=request.remote_addr,
-        details=json.dumps({
+        details_dict={
             **attempt_details,
             "user_id": user.id,
             "is_admin": user.is_admin
-        })
+        }
     )
-    db.session.add(log)
-    db.session.commit()
     
     return jsonify({
         "token": token,
@@ -127,21 +128,16 @@ def set_password():
     db.session.commit()
     
     # Log password setup
-    from models import ActivityLog
-    log = ActivityLog(
+    _log_activity(
         user_id=user.id,
         action="password_set_success",
         status="success",
-        ip_address=request.remote_addr,
-        details=json.dumps({
+        details_dict={
             "email": email,
             "user_id": user.id,
-            "is_admin": user.is_admin,
-            "ip_address": request.remote_addr
-        })
+            "is_admin": user.is_admin
+        }
     )
-    db.session.add(log)
-    db.session.commit()
     
     # Return JWT token for immediate login
     token = create_token(user.id)
@@ -177,19 +173,14 @@ def get_current_user():
 @log_activity("logout", "User logged out")
 def logout():
     """Logout endpoint with activity logging."""
-    # Log the logout
-    from models import ActivityLog
-    log = ActivityLog(
+    _log_activity(
         user_id=g.current_user.id,
         action="logout_success",
         status="success",
-        ip_address=request.remote_addr,
-        details=json.dumps({
+        details_dict={
             "user_id": g.current_user.id,
             "email": g.current_user.email
-        })
+        }
     )
-    db.session.add(log)
-    db.session.commit()
     
     return jsonify({"message": "Logged out successfully"})
