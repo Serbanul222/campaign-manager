@@ -1,4 +1,3 @@
- 
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
@@ -19,6 +18,29 @@ import MainLayout from './components/layout/MainLayout.jsx';
 
 // CSS
 import './index.css';
+
+// Import useAuth hook
+import useAuth from './hooks/useAuth.js';
+
+// Admin-only route component
+const AdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+        <span className="ml-2 text-gray-600">Loading...</span>
+      </div>
+    );
+  }
+  
+  if (!user?.is_admin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return children;
+};
 
 const App = () => {
   return (
@@ -54,19 +76,24 @@ const App = () => {
             </ProtectedRoute>
           } />
           
+          {/* Admin-only routes */}
           <Route path="/users" element={
             <ProtectedRoute>
-              <MainLayout>
-                <UsersPage />
-              </MainLayout>
+              <AdminRoute>
+                <MainLayout>
+                  <UsersPage />
+                </MainLayout>
+              </AdminRoute>
             </ProtectedRoute>
           } />
           
           <Route path="/logs" element={
             <ProtectedRoute>
-              <MainLayout>
-                <LogsPage />
-              </MainLayout>
+              <AdminRoute>
+                <MainLayout>
+                  <LogsPage />
+                </MainLayout>
+              </AdminRoute>
             </ProtectedRoute>
           } />
         </Routes>

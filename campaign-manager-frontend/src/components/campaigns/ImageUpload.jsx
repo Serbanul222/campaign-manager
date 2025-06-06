@@ -114,7 +114,7 @@ const ImageUpload = ({ label, accept = 'image/*', onSelect }) => {
               {isDragOver ? 'Drop image here' : 'Click to upload or drag and drop'}
             </p>
             <p className="text-xs text-gray-500">
-              PNG, JPG, GIF up to 16MB
+              PNG up to 16MB
             </p>
           </div>
         )}

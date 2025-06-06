@@ -35,37 +35,56 @@ const DashboardPage = () => {
         </Link>
 
         {user?.is_admin && (
-          <Link 
-            to="/users" 
-            className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center">
-              <div className="bg-green-100 p-3 rounded-lg">
-                <Users className="h-6 w-6 text-green-600" />
+          <>
+            <Link 
+              to="/users" 
+              className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center">
+                <div className="bg-green-100 p-3 rounded-lg">
+                  <Users className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Users</h3>
+                  <p className="text-gray-600 text-sm">Manage user access</p>
+                </div>
               </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-semibold text-gray-900">Users</h3>
-                <p className="text-gray-600 text-sm">Manage user access</p>
-              </div>
-            </div>
-          </Link>
-        )}
+            </Link>
 
-        <Link 
-          to="/logs" 
-          className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-        >
+            <Link 
+              to="/logs" 
+              className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center">
+                <div className="bg-purple-100 p-3 rounded-lg">
+                  <Activity className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Activity Logs</h3>
+                  <p className="text-gray-600 text-sm">View system activity (Admin only)</p>
+                </div>
+              </div>
+            </Link>
+          </>
+        )}
+      </div>
+
+      {/* Admin notice */}
+      {user?.is_admin && (
+        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg p-6 text-white mb-6">
           <div className="flex items-center">
-            <div className="bg-purple-100 p-3 rounded-lg">
-              <Activity className="h-6 w-6 text-purple-600" />
+            <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+              <Activity className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <h3 className="text-lg font-semibold text-gray-900">Activity</h3>
-              <p className="text-gray-600 text-sm">View system logs</p>
+              <h2 className="text-lg font-semibold mb-1">Administrator Access</h2>
+              <p className="text-purple-100 text-sm">
+                You have access to user management and system activity logs
+              </p>
             </div>
           </div>
-        </Link>
-      </div>
+        </div>
+      )}
 
       {/* Quick Create Campaign */}
       <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg p-6 text-white">
@@ -87,4 +106,4 @@ const DashboardPage = () => {
   );
 };
 
-export default DashboardPage; 
+export default DashboardPage;

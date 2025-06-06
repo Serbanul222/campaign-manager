@@ -1,4 +1,4 @@
- import React from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Calendar, Users, Activity, LogOut, Home } from 'lucide-react';
 import useAuth from '../../hooks/useAuth.js';
@@ -14,8 +14,10 @@ const MainLayout = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Campaigns', href: '/campaigns', icon: Calendar },
-    ...(user?.is_admin ? [{ name: 'Users', href: '/users', icon: Users }] : []),
-    { name: 'Activity', href: '/logs', icon: Activity },
+    ...(user?.is_admin ? [
+      { name: 'Users', href: '/users', icon: Users },
+      { name: 'Activity', href: '/logs', icon: Activity }
+    ] : []),
   ];
 
   return (

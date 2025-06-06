@@ -20,6 +20,10 @@ const CampaignList = ({ campaigns, onEdit, onDelete, getImageUrl }) => {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const handlePreview = (campaign) => {
+    window.open('http://192.168.103.111:99/', '_blank');
+  };
+
   if (!campaigns || campaigns.length === 0) {
     return (
       <div className="text-center py-12">
@@ -54,7 +58,7 @@ const CampaignList = ({ campaigns, onEdit, onDelete, getImageUrl }) => {
               <button 
                 className="p-2 text-gray-500 hover:text-blue-600 transition-colors rounded-md hover:bg-blue-50" 
                 title="Preview Campaign"
-                onClick={() => console.log('Preview not implemented yet')}
+                onClick={() => handlePreview(campaign)}
               >
                 <Eye size={18} />
               </button>
